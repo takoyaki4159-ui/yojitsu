@@ -2438,6 +2438,9 @@ const auth = firebase.auth();
 const db = firebase.database();
 let currentUid = null;
 
+// ログイン状態をブラウザに永続保存（F5後も自動ログイン）
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
 // ---- ログインUI ----
 const loginOverlay = document.createElement('div');
 loginOverlay.id = 'loginOverlay';
