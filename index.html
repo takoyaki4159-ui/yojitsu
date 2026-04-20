@@ -2469,6 +2469,9 @@ auth.onAuthStateChanged(user => {
       loadData();
       render();
       renderLearningChecks();
+      // 週・月表示も初期データをFirebaseから取得
+      if(typeof renderWeek === 'function') renderWeek();
+      if(typeof renderMonth === 'function') renderMonth();
     });
   } else {
     currentUid = null;
