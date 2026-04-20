@@ -730,11 +730,19 @@ let diaryTimer=null;
 function onDiaryInput(){
   setDiaryStatus('入力中...');
   clearTimeout(diaryTimer);
-  diaryTimer=setTimeout(()=>{pushUndo();saveData();setDiaryStatus('保存しました');setTimeout(()=>setDiaryStatus(''),2000);},800);
+  diaryTimer=setTimeout(()=>{
+    pushUndo();
+    saveData();
+    setDiaryStatus('✅ 保存しました');
+    setTimeout(()=>setDiaryStatus(''),3000);
+  },3000);
 }
 function setDiaryStatus(msg){
   const el=document.getElementById('diaryStatus');
-  if(el)el.textContent=msg;
+  if(el){
+    el.textContent=msg;
+    el.style.color=msg.includes('✅')?'#1D9E75':'#aaa';
+  }
 }
 function resetToday(){
   if(!confirm('今日のデータをすべてリセットしますか？'))return;
