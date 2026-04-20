@@ -2438,9 +2438,6 @@ const auth = firebase.auth();
 const db = firebase.database();
 let currentUid = null;
 
-// ログイン状態をブラウザに永続保存（F5後も自動ログイン）
-auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-
 // ---- ログインUI ----
 const loginOverlay = document.createElement('div');
 loginOverlay.id = 'loginOverlay';
@@ -2457,9 +2454,12 @@ document.body.appendChild(loginOverlay);
 document.getElementById('loginBtn').addEventListener('click', () => {
   document.getElementById('loginStatus').textContent = 'ログイン中...';
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e => {
-    document.getElementById('loginStatus').textContent = 'ログインに失敗しました: ' + e.message;
-  });
+  auth.signInWithRedirect(provider);
+});
+
+// リダイレクト後の結果を処理
+auth.getRedirectResult().catch(e => {
+  console.error('redirect error', e);
 });
 
 // ---- 認証状態の監視 ----
