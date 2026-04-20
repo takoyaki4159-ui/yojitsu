@@ -150,9 +150,12 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
 
 <!-- 学習チェックエリア -->
 <div id="learningCheckArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;flex-shrink:0;display:none">
-  <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;gap:6px">
-    <span style="font-size:12px;font-weight:500;color:#666">📚 学習チェック</span>
-    <span id="learningProgress" style="font-size:11px;color:#aaa"></span>
+  <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:12px;font-weight:500;color:#666">📚 学習チェック</span>
+      <span id="learningProgress" style="font-size:11px;color:#aaa"></span>
+    </div>
+    <button onclick="toggleLearningCheckArea()" id="learningCheckToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
   </div>
   <div id="learningCheckList" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 20px"></div>
 </div>
@@ -160,14 +163,19 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
 <!-- 日記エリア -->
 <div style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;flex-shrink:0">
   <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between">
-    <span style="font-size:12px;font-weight:500;color:#666">📝 日記</span>
-    <span id="diaryStatus" style="font-size:11px;color:#aaa"></span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;font-weight:500;color:#666">📝 日記</span>
+      <span id="diaryStatus" style="font-size:11px;color:#aaa"></span>
+    </div>
+    <button onclick="toggleDiaryArea()" id="diaryToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
   </div>
+  <div id="diaryBody">
   <textarea id="diaryText"
     placeholder="今日の振り返り、気づき、メモなど..."
     style="width:100%;min-height:60px;padding:12px 14px;border:none;resize:vertical;font-size:13px;font-family:inherit;color:#1a1a1a;background:#fff;outline:none;line-height:1.7"
     oninput="onDiaryInput()"
   ></textarea>
+  </div>
 </div>
 </div>
 
@@ -727,6 +735,24 @@ function toggleLearningCheck(id,checked){
 
 // ---- 日記 ----
 let diaryTimer=null;
+// ---- 学習チェック・日記のトグル ----
+let learningCheckOpen=true;
+let diaryOpen=true;
+function toggleLearningCheckArea(){
+  learningCheckOpen=!learningCheckOpen;
+  const list=document.getElementById('learningCheckList');
+  const btn=document.getElementById('learningCheckToggleBtn');
+  if(list){list.style.display=learningCheckOpen?'flex':'none';}
+  if(btn){btn.textContent=learningCheckOpen?'▲ 閉じる':'▼ 開く';}
+}
+function toggleDiaryArea(){
+  diaryOpen=!diaryOpen;
+  const body=document.getElementById('diaryBody');
+  const btn=document.getElementById('diaryToggleBtn');
+  if(body){body.style.display=diaryOpen?'block':'none';}
+  if(btn){btn.textContent=diaryOpen?'▲ 閉じる':'▼ 開く';}
+}
+
 function onDiaryInput(){
   setDiaryStatus('入力中...');
   clearTimeout(diaryTimer);
