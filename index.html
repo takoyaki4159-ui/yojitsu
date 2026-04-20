@@ -2319,7 +2319,7 @@ const _d=new Date();_d.setDate(_d.getDate()-_d.getDay());
 weekSunDate={y:_d.getFullYear(),m:_d.getMonth()+1,d:_d.getDate()};
 updateHeader();
 loadTemplates();renderTemplates();
-loadData();render();renderLearningChecks();
+// loadData・render・renderLearningChecksはログイン後に実行
 
 // ---- サイドバーリサイズ ----
 (function(){
