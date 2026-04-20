@@ -620,14 +620,21 @@ function onImportFile(input){
         saveTemplates();
         renderTemplates();
       }
-      // 日付データを上書き（他の日付は保持）
-      Object.entries(data.days).forEach(([date,dayData])=>{
+      // 日付データを上書き（YYYYMMDDの形式の日付キーのみ処理）
+      const datePattern=/^\d{4}-\d{2}-\d{2}$/;
+      const dayEntries=Object.entries(data.days).filter(([date])=>datePattern.test(date));
+      dayEntries.forEach(([date,dayData])=>{
+        // localStorageに保存
         localStorage.setItem('yojitsu:'+date,JSON.stringify(dayData));
+        // Firebaseに保存
+        if(currentUid){
+          db.ref('users/'+currentUid+'/days/'+date).set(dayData);
+        }
       });
       // 今日のデータを再読み込み
       loadData();
-      renderBlocks();updateStats();
-      alert('インポートが完了しました（'+Object.keys(data.days).length+'日分）');
+      renderBlocks();updateStats();renderLearningChecks();
+      alert('インポートが完了しました（'+dayEntries.length+'日分）');
     }catch(err){
       alert('読み込みに失敗しました：'+err.message);
     }
@@ -1803,6 +1810,39 @@ function renderMonth(){
     cells.push({y:nd.getFullYear(),m:nd.getMonth()+1,d:nd.getDate(),otherMonth:true});
   }
 
+  // Firebaseから当月分データを並行取得
+  const targetCells=cells.filter(c=>!c.otherMonth);
+  if(currentUid){
+    const promises=targetCells.map(cell=>{
+      const ds=mkDateStr(cell.y,cell.m,cell.d);
+      return db.ref('users/'+currentUid+'/days/'+ds).once('value').then(snap=>{
+        const data=snap.val();
+        if(data){
+          data.plans=(data.plans||[]).filter(p=>!p.carryId);
+          data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
+          try{localStorage.setItem('yojitsu:'+ds,JSON.stringify(data));}catch(e){}
+          return {ds,data};
+        }
+        try{const raw=localStorage.getItem('yojitsu:'+ds);if(raw){const d2=JSON.parse(raw);d2.plans=(d2.plans||[]).filter(p=>!p.carryId);d2.actuals=(d2.actuals||[]).filter(a=>!a.carryId);return{ds,data:d2};}}catch(e){}
+        return {ds,data:{plans:[],actuals:[],learningChecks:{}}};
+      });
+    });
+    Promise.all(promises).then(results=>{
+      const cache={};
+      results.forEach(({ds,data})=>{cache[ds]=data;});
+      renderMonthWithCache(cells,cache);
+    });
+  }else{
+    const cache={};
+    targetCells.forEach(cell=>{
+      const ds=mkDateStr(cell.y,cell.m,cell.d);
+      cache[ds]=loadData(cell.y,cell.m,cell.d)||{plans:[],actuals:[],learningChecks:{}};
+    });
+    renderMonthWithCache(cells,cache);
+  }
+}
+
+function renderMonthWithCache(cells,cache){
   const learningItems=getLearningItems();
   const monthItemMin={};
   let monthTotalMin=0;
@@ -1819,7 +1859,8 @@ function renderMonth(){
 
     let planMin=0,actualMin=0,checks={},dayActuals=[];
     if(!cell.otherMonth){
-      const data=loadData(cell.y,cell.m,cell.d)||{plans:[],actuals:[],learningChecks:{}};
+      const ds=mkDateStr(cell.y,cell.m,cell.d);
+      const data=cache[ds]||{plans:[],actuals:[],learningChecks:{}};
       planMin=data.plans.reduce((s,x)=>s+dur(x.start,x.end),0);
       actualMin=data.actuals.reduce((s,x)=>s+dur(x.start,x.end),0);
       checks=data.learningChecks||{};
@@ -1917,7 +1958,33 @@ function renderWeek(){
   const weekTitleEl=document.getElementById('weekTitle');
   weekTitleEl.textContent=
     `${sun.y}/${String(sun.m).padStart(2,'0')}/${String(sun.d).padStart(2,'0')} 〜 ${String(sat.m).padStart(2,'0')}/${String(sat.d).padStart(2,'0')}`;
-  weekTitleEl.className='date-display'+(isThisWeek()?' is-today':'');  const weekData=dates.map(dt=>loadData(dt.y,dt.m,dt.d)||{plans:[],actuals:[]});
+  weekTitleEl.className='date-display'+(isThisWeek()?' is-today':'');
+
+  // Firebaseから7日分のデータを並行取得してから描画
+  if(currentUid){
+    const promises=dates.map(dt=>{
+      const ds=mkDateStr(dt.y,dt.m,dt.d);
+      return db.ref('users/'+currentUid+'/days/'+ds).once('value').then(snap=>{
+        const data=snap.val();
+        if(data){
+          data.plans=(data.plans||[]).filter(p=>!p.carryId);
+          data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
+          try{localStorage.setItem('yojitsu:'+ds,JSON.stringify(data));}catch(e){}
+          return data;
+        }
+        // Firebaseになければlocalから
+        try{const raw=localStorage.getItem('yojitsu:'+ds);if(raw){const d2=JSON.parse(raw);d2.plans=(d2.plans||[]).filter(p=>!p.carryId);d2.actuals=(d2.actuals||[]).filter(a=>!a.carryId);return d2;}}catch(e){}
+        return {plans:[],actuals:[],learningChecks:{}};
+      });
+    });
+    Promise.all(promises).then(weekData=>renderWeekWithData(dates,weekData));
+  }else{
+    const weekData=dates.map(dt=>loadData(dt.y,dt.m,dt.d)||{plans:[],actuals:[]});
+    renderWeekWithData(dates,weekData);
+  }
+}
+
+function renderWeekWithData(dates,weekData){
   document.getElementById('weekDayHeaders').innerHTML=dates.map((dt,i)=>{
     const isT=(dt.y===todayY&&dt.m===todayM&&dt.d===todayD);
     const isSun=dt.dow===0,isSat=dt.dow===6;
