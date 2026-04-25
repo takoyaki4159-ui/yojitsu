@@ -157,6 +157,7 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
       <span id="learningProgress" style="font-size:11px;color:#aaa"></span>
     </div>
     <div style="display:flex;gap:4px">
+      <button onclick="toggleLearningCheckExpanded()" id="learningCheckExpandBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▼ 広げる</button>
       <button onclick="toggleLearningCheckArea()" id="learningCheckToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
     </div>
   </div>
@@ -914,35 +915,25 @@ function toggleLearningCheckArea(){
   if(!learningCheckOpen) setLearningCheckExpanded(false);
 }
 
+function toggleLearningCheckExpanded(){
+  setLearningCheckExpanded(!learningCheckExpanded);
+}
+
 function setLearningCheckExpanded(expand){
   learningCheckExpanded=expand;
   const area=document.getElementById('learningCheckArea');
-  const diary=document.getElementById('diaryArea');
   const btn=document.getElementById('learningCheckExpandBtn');
-  const tlScroll=document.getElementById('tlScroll');
   const list=document.getElementById('learningCheckList');
   if(expand){
-    // 展開：日記を隠し、タイムラインを縮め、チェックリストを大きく
-    if(diary)diary.style.display='none';
-    if(tlScroll)tlScroll.style.maxHeight='200px';
-    if(area){
-      area.style.border='0.5px solid #B5D4F4';
-      area.style.flexGrow='1';
-      area.style.overflow='auto';
-    }
-    if(list)list.style.maxHeight='300px';
-    if(btn)btn.textContent='▼ 折りたたむ';
+    // 広げる：max-heightを400pxに（中身は360pxまでスクロール）
+    if(area)area.style.maxHeight='400px';
+    if(list)list.style.maxHeight='360px';
+    if(btn)btn.textContent='▲ 折りたたむ';
   }else{
     // 折りたたみ：元に戻す
-    if(diary)diary.style.display='';
-    if(tlScroll)tlScroll.style.maxHeight='';
-    if(area){
-      area.style.border='0.5px solid #ccc';
-      area.style.flexGrow='';
-      area.style.overflow='hidden';
-    }
-    if(list)list.style.maxHeight='';
-    if(btn)btn.textContent='▲ 広げる';
+    if(area)area.style.maxHeight='200px';
+    if(list)list.style.maxHeight='160px';
+    if(btn)btn.textContent='▼ 広げる';
   }
 }
 function toggleDiaryArea(){
