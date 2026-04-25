@@ -115,6 +115,7 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
     <button class="btn btn-actual" onclick="openAdd('actual')">＋ 実績</button>
     <button class="btn btn-week" onclick="saveAndWeek()">週表示</button>
     <button class="btn btn-week" onclick="saveAndMonth()">月表示</button>
+    <button class="btn" onclick="showDashboard()" style="background:#EEEDFE;color:#3C3489;border-color:#AFA9EC">ダッシュボード</button>
     <button class="btn" onclick="copyPlanToActual()">予定→実績</button>
     <button class="btn" onclick="resetToday()" style="color:#999;border-color:#ddd">今日リセット</button>
     <button class="btn" onclick="resetScale()" style="color:#999;border-color:#ddd" title="タイムラインの縮尺をデフォルトに戻す">縮尺リセット</button>
@@ -305,6 +306,49 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
   </div>
 </div>
 
+<!-- ダッシュボードページ -->
+<div class="page" id="pageDashboard" style="height:calc(100vh - 24px);overflow-y:auto;padding:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1a1a1a">学習ダッシュボード</span>
+      <span id="dashPeriodLabel" style="font-size:12px;color:#378ADD;font-weight:500"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="display:flex;gap:4px">
+        <button id="dashBtnWeek" class="btn" onclick="setDashMode('week')" style="font-size:11px;padding:3px 10px">週</button>
+        <button id="dashBtnMonth" class="btn" onclick="setDashMode('month')" style="font-size:11px;padding:3px 10px">月</button>
+        <button id="dashBtnYear" class="btn" onclick="setDashMode('year')" style="font-size:11px;padding:3px 10px">年</button>
+      </div>
+      <button class="btn" onclick="showDaily()" style="font-size:11px;padding:3px 10px">日次に戻る</button>
+    </div>
+  </div>
+
+  <div id="dashStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">① 項目別時間</div>
+      <div id="dashBarChart"></div>
+    </div>
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">② 期間別比較（積み上げ）</div>
+      <div id="dashStackChart" style="display:flex;gap:4px;align-items:flex-end;height:90px;margin-bottom:6px"></div>
+      <div id="dashStackLegend" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">③ カレンダー</div>
+      <div id="dashCalendar"></div>
+    </div>
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">④ メモ履歴</div>
+      <div id="dashMemoHistory"></div>
+    </div>
+  </div>
+</div>
+
 <!-- テンプレート modal -->
 <div class="modal-bg" id="tmplModalBg">
   <div class="modal">
@@ -393,6 +437,8 @@ let WPX=1.0; const WPX_MIN=0.3,WPX_MAX=4.0;
 
 let plans=[],actuals=[],nextId=200;
 let learningChecks={}; // {templateId: true/false}
+let learningMemos={}; // {templateId: [memo1, memo2, ...]} 今日のメモ（複数タグ）
+let learningMemoHistory={}; // {templateId: [候補1, 候補2, ...]} 過去の候補履歴
 
 // ---- Undo履歴 ----
 const undoStack=[];
@@ -521,12 +567,27 @@ function showDaily(){
   document.getElementById('pageDaily').classList.add('active');
   document.getElementById('pageWeek').classList.remove('active');
   document.getElementById('pageMonth').classList.remove('active');
+  document.getElementById('pageDashboard').classList.remove('active');
 }
 function showWeek(){
   document.getElementById('pageDaily').classList.remove('active');
   document.getElementById('pageWeek').classList.add('active');
   document.getElementById('pageMonth').classList.remove('active');
+  document.getElementById('pageDashboard').classList.remove('active');
   renderWeek();
+}
+let dashMode='week';
+function showDashboard(){
+  saveData();
+  document.getElementById('pageDaily').classList.remove('active');
+  document.getElementById('pageWeek').classList.remove('active');
+  document.getElementById('pageMonth').classList.remove('active');
+  document.getElementById('pageDashboard').classList.add('active');
+  renderDashboard();
+}
+function setDashMode(mode){
+  dashMode=mode;
+  renderDashboard();
 }
 function saveAndWeek(){
   saveData();
@@ -547,6 +608,7 @@ function loadData(y,m,d){
       if(!y){
         plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;
         learningChecks=data.learningChecks||{};
+        learningMemos=data.learningMemos||{};
         const ta=document.getElementById('diaryText');
         if(ta)ta.value=data.diary||'';
         setDiaryStatus('');
@@ -556,6 +618,7 @@ function loadData(y,m,d){
       if(!y){
         plans=[];actuals=[];nextId=200;
         learningChecks={};
+        learningMemos={};
         const ta=document.getElementById('diaryText');
         if(ta)ta.value='';
         setDiaryStatus('');
@@ -566,7 +629,7 @@ function loadData(y,m,d){
 }
 function saveData(){
   const diary=document.getElementById('diaryText')?document.getElementById('diaryText').value:'';
-  try{localStorage.setItem('yojitsu:'+dateStr(),JSON.stringify({plans,actuals,nextId,diary,learningChecks}));}
+  try{localStorage.setItem('yojitsu:'+dateStr(),JSON.stringify({plans,actuals,nextId,diary,learningChecks,learningMemos}));}
   catch(e){}
 }
 
@@ -694,13 +757,35 @@ function renderLearningChecks(){
     const checked=isAuto||isManual;
     const min=autoChecked[t.id]||0;
     const timeLabel=min>0?`<span style="font-size:11px;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:1px 6px;margin-left:4px">${fmtMin(min)}</span>`:'';
-    return `<label style="display:flex;align-items:center;gap:6px;cursor:${isAuto?'default':'pointer'};padding:4px 0;min-width:100px">
-      <input type="checkbox" ${checked?'checked':''} ${isAuto?'disabled':''}
-        onchange="toggleLearningCheck(${t.id},this.checked)"
-        style="width:15px;height:15px;cursor:${isAuto?'default':'pointer'};accent-color:#3C3489">
-      <span style="font-size:13px;color:${checked?'#aaa':'#1a1a1a'};text-decoration:${checked?'line-through':'none'};transition:color .15s">${t.name}</span>
-      ${timeLabel}
-    </label>`;
+    const memos=learningMemos[t.id]||[];
+    const memoTags=memos.map(m=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:10px;padding:1px 8px;font-size:11px;color:#0C447C">
+      ${m}<span style="color:#aaa;cursor:pointer;margin-left:2px" onclick="removeMemoTag(${t.id},'${m.replace(/'/g,"\\'")}')">✕</span>
+    </span>`).join('');
+    const bg=checked?'#E6F1FB':'#fff';
+    const borderColor=checked?'#B5D4F4':'#ddd';
+    return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:140px;flex-shrink:0">
+      <div style="padding:6px 10px;display:flex;align-items:center;gap:6px;cursor:pointer" onclick="toggleLearningCheck(${t.id},${!checked})">
+        <input type="checkbox" ${checked?'checked':''} ${isAuto?'disabled':''}
+          onchange="toggleLearningCheck(${t.id},this.checked)"
+          style="width:14px;height:14px;cursor:${isAuto?'default':'pointer'};accent-color:#3C3489;flex-shrink:0">
+        <span style="font-size:12px;color:${checked?'#0C447C':'#1a1a1a'};font-weight:${checked?'500':'400'}">${t.name}</span>
+        ${timeLabel}
+      </div>
+      <div style="padding:0 10px 8px;position:relative">
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:${memos.length?'5px':'0'}">
+          ${memoTags}
+        </div>
+        <div style="position:relative">
+          <input id="memoInput_${t.id}" type="text" placeholder="＋ メモを追加..."
+            style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:3px 8px;outline:none;background:#f9f9f9"
+            oninput="showMemoSuggest(${t.id},this)"
+            onfocus="showMemoSuggest(${t.id},this)"
+            onblur="setTimeout(()=>hideMemoSuggest(${t.id}),200)"
+            onkeydown="if(event.key==='Enter'&&this.value.trim()){addMemoTag(${t.id},this.value.trim());this.value='';hideMemoSuggest(${t.id});event.preventDefault();}">
+          <div id="memoSuggest_${t.id}" style="display:none;position:absolute;left:0;right:0;background:#fff;border:0.5px solid #ddd;border-radius:4px;z-index:50;top:100%"></div>
+        </div>
+      </div>
+    </div>`;
   }).join('');
 
   // 合計学習時間を項目別内訳付きで表示
@@ -732,6 +817,64 @@ function toggleLearningCheck(id,checked){
   saveData();
   renderLearningChecks();
 }
+// ---- 学習メモ履歴 ----
+function loadMemoHistory(){
+  try{const r=localStorage.getItem('yojitsu:memoHistory');if(r)learningMemoHistory=JSON.parse(r);}catch(e){}
+}
+function saveMemoHistory(){
+  try{localStorage.setItem('yojitsu:memoHistory',JSON.stringify(learningMemoHistory));}catch(e){}
+}
+function addMemoTag(tid,text){
+  if(!text.trim())return;
+  if(!learningMemos[tid])learningMemos[tid]=[];
+  if(!learningMemos[tid].includes(text.trim()))learningMemos[tid].push(text.trim());
+  if(!learningMemoHistory[tid])learningMemoHistory[tid]=[];
+  if(!learningMemoHistory[tid].includes(text.trim()))learningMemoHistory[tid].unshift(text.trim());
+  if(learningMemoHistory[tid].length>20)learningMemoHistory[tid]=learningMemoHistory[tid].slice(0,20);
+  saveMemoHistory();
+  saveData();
+  renderLearningChecks();
+}
+function removeMemoTag(tid,text){
+  if(!learningMemos[tid])return;
+  learningMemos[tid]=learningMemos[tid].filter(m=>m!==text);
+  saveData();
+  renderLearningChecks();
+}
+function removeMemoHistory(tid,text){
+  if(!learningMemoHistory[tid])return;
+  learningMemoHistory[tid]=learningMemoHistory[tid].filter(m=>m!==text);
+  saveMemoHistory();
+  renderLearningChecks();
+}
+function showMemoSuggest(tid,input){
+  const val=input.value.trim();
+  const hist=learningMemoHistory[tid]||[];
+  const filtered=val?hist.filter(h=>h.toLowerCase().includes(val.toLowerCase())):hist;
+  let suggest=document.getElementById('memoSuggest_'+tid);
+  if(!suggest){
+    suggest=document.createElement('div');
+    suggest.id='memoSuggest_'+tid;
+    suggest.style.cssText='background:#fff;border:0.5px solid #ddd;border-radius:4px;margin-top:2px;overflow:hidden;';
+    input.parentNode.appendChild(suggest);
+  }
+  let html='';
+  filtered.slice(0,5).forEach(h=>{
+    const hs=h.replace(/'/g,"\\'");
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;font-size:11px;color:#444;cursor:pointer;border-top:0.5px solid #eee" onmousedown="event.preventDefault();addMemoTag(${tid},'${hs}');document.getElementById('memoInput_${tid}').value='';hideMemoSuggest(${tid})"><span>${h}</span><span style="color:#ccc;font-size:10px;padding:0 4px" onmousedown="event.stopPropagation();event.preventDefault();removeMemoHistory(${tid},'${hs}')">✕</span></div>`;
+  });
+  if(val&&!learningMemoHistory[tid]||!learningMemoHistory[tid].includes(val)){
+    const vs=val.replace(/'/g,"\\'");
+    html+=`<div style="padding:5px 8px;font-size:11px;color:#1D9E75;cursor:pointer;border-top:0.5px solid #eee;display:flex;align-items:center;gap:4px" onmousedown="event.preventDefault();addMemoTag(${tid},'${vs}');document.getElementById('memoInput_${tid}').value='';hideMemoSuggest(${tid})"><span>＋</span><span>「${val}」を新規追加</span></div>`;
+  }
+  suggest.innerHTML=html;
+  suggest.style.display=html?'block':'none';
+}
+function hideMemoSuggest(tid){
+  const s=document.getElementById('memoSuggest_'+tid);
+  if(s)s.style.display='none';
+}
+
 
 // ---- 日記 ----
 let diaryTimer=null;
@@ -1827,6 +1970,7 @@ function showMonth(){
   document.getElementById('pageDaily').classList.remove('active');
   document.getElementById('pageWeek').classList.remove('active');
   document.getElementById('pageMonth').classList.add('active');
+  document.getElementById('pageDashboard').classList.remove('active');
   renderMonth();
 }
 
@@ -2230,6 +2374,214 @@ function toggleWeekLearningCheck(dtKey,tmplId,checked){
 function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function jumpToDay(y,m,d){cY=y;cM=m;cD=d;render._initialized=false;updateHeader();loadData();render();renderLearningChecks();showDaily();}
 
+// ---- ダッシュボード ----
+const ITEM_COLORS=['#378ADD','#1D9E75','#EF9F27','#7F77DD','#D85A30','#D4537E','#639922','#BA7517'];
+
+function getDashPeriods(){
+  const now=new Date();
+  const periods=[];
+  if(dashMode==='week'){
+    for(let i=3;i>=0;i--){
+      const sun=new Date(now);
+      sun.setDate(sun.getDate()-sun.getDay()-i*7);
+      const sat=new Date(sun);sat.setDate(sat.getDate()+6);
+      const dates=[];
+      for(let d=0;d<7;d++){const dd=new Date(sun);dd.setDate(dd.getDate()+d);dates.push({y:dd.getFullYear(),m:dd.getMonth()+1,d:dd.getDate()});}
+      const label=`${sun.getMonth()+1}/${sun.getDate()}週`;
+      periods.push({label,dates,isCurrent:i===0});
+    }
+  }else if(dashMode==='month'){
+    for(let i=3;i>=0;i--){
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+      const dates=[];
+      for(let dd=1;dd<=last;dd++)dates.push({y:d.getFullYear(),m:d.getMonth()+1,d:dd});
+      periods.push({label:`${d.getMonth()+1}月`,dates,isCurrent:i===0});
+    }
+  }else{
+    for(let i=2;i>=0;i--){
+      const y=now.getFullYear()-i;
+      const dates=[];
+      for(let m=1;m<=12;m++){const last=new Date(y,m,0).getDate();for(let dd=1;dd<=last;dd++)dates.push({y,m,d:dd});}
+      periods.push({label:`${y}年`,dates,isCurrent:i===0});
+    }
+  }
+  return periods;
+}
+
+function getDayData(y,m,d){
+  try{const r=localStorage.getItem('yojitsu:'+mkDateStr(y,m,d));if(r)return JSON.parse(r);}catch(e){}
+  return null;
+}
+
+function renderDashboard(){
+  const items=getLearningItems();
+  const periods=getDashPeriods();
+  const cur=periods[periods.length-1];
+
+  // 期間ラベル
+  const periodEl=document.getElementById('dashPeriodLabel');
+  if(periodEl)periodEl.textContent=cur.label;
+
+  // ボタンの見た目
+  ['week','month','year'].forEach(m=>{
+    const btn=document.getElementById('dashBtn'+m.charAt(0).toUpperCase()+m.slice(1));
+    if(btn){
+      if(m===dashMode){btn.style.background='#EEEDFE';btn.style.color='#3C3489';btn.style.borderColor='#AFA9EC';}
+      else{btn.style.background='';btn.style.color='';btn.style.borderColor='';}
+    }
+  });
+
+  // 当期のデータ集計
+  let totalMin=0;
+  const itemMins={};
+  items.forEach(t=>{itemMins[t.id]=0;});
+  cur.dates.forEach(({y,m,d})=>{
+    const data=getDayData(y,m,d);
+    if(!data||!data.actuals)return;
+    items.forEach(t=>{
+      data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{
+        const dd=toMin(a.end)-toMin(a.start);
+        if(dd>0){itemMins[t.id]+=dd;totalMin+=dd;}
+      });
+    });
+  });
+
+  // ① サマリー
+  const statsEl=document.getElementById('dashStats');
+  const studyDays=cur.dates.filter(({y,m,d})=>{
+    const data=getDayData(y,m,d);
+    if(!data||!data.actuals)return false;
+    return items.some(t=>data.actuals.some(a=>(a.name||'').trim()===t.name.trim()&&toMin(a.end)-toMin(a.start)>0));
+  }).length;
+  const checkedItems=items.filter(t=>itemMins[t.id]>0).length;
+  statsEl.innerHTML=`
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${fmtMin(totalMin)||'0h'}</div><div style="font-size:10px;color:#666;margin-top:1px">${cur.label}の学習</div></div>
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${checkedItems}</div><div style="font-size:10px;color:#666;margin-top:1px">学習項目数</div><div style="font-size:10px;color:#aaa;margin-top:2px">全${items.length}中</div></div>
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${studyDays}日</div><div style="font-size:10px;color:#666;margin-top:1px">学習した日</div></div>
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${fmtMin(totalMin)||'0h'}</div><div style="font-size:10px;color:#666;margin-top:1px">累計</div></div>`;
+
+  // ① 棒グラフ
+  const maxMin=Math.max(...items.map(t=>itemMins[t.id]),1);
+  const barEl=document.getElementById('dashBarChart');
+  barEl.innerHTML=items.filter(t=>itemMins[t.id]>0).map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <div style="font-size:10px;color:#1a1a1a;width:90px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
+      <div style="flex:1;height:10px;background:#f5f5f2;border-radius:2px;overflow:hidden">
+        <div style="width:${Math.round(itemMins[t.id]/maxMin*100)}%;height:100%;background:${ITEM_COLORS[i%ITEM_COLORS.length]};border-radius:2px"></div>
+      </div>
+      <div style="font-size:10px;color:#666;width:32px;text-align:right">${fmtMin(itemMins[t.id])}</div>
+    </div>`).join('')||'<div style="font-size:11px;color:#aaa">データなし</div>';
+
+  // ② 積み上げ棒グラフ
+  const stackEl=document.getElementById('dashStackChart');
+  const legendEl=document.getElementById('dashStackLegend');
+  const periodMins=periods.map(p=>{
+    const mins={};
+    items.forEach(t=>{mins[t.id]=0;});
+    p.dates.forEach(({y,m,d})=>{
+      const data=getDayData(y,m,d);
+      if(!data||!data.actuals)return;
+      items.forEach(t=>{
+        data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{
+          const dd=toMin(a.end)-toMin(a.start);if(dd>0)mins[t.id]+=dd;
+        });
+      });
+    });
+    const total=items.reduce((s,t)=>s+mins[t.id],0);
+    return{...p,mins,total};
+  });
+  const maxTotal=Math.max(...periodMins.map(p=>p.total),1);
+  stackEl.innerHTML=periodMins.map(p=>{
+    const h=Math.round(p.total/maxTotal*80);
+    const bars=items.filter(t=>p.mins[t.id]>0).map((t,i)=>{
+      const bh=Math.round(p.mins[t.id]/maxTotal*80);
+      return `<div style="width:100%;height:${bh}px;background:${ITEM_COLORS[items.indexOf(t)%ITEM_COLORS.length]}"></div>`;
+    }).join('');
+    return `<div style="flex:1;text-align:center">
+      <div style="height:80px;display:flex;flex-direction:column;justify-content:flex-end;margin-bottom:3px;${p.isCurrent?'border:0.5px solid #B5D4F4;border-radius:3px;padding:2px 2px 0':''}">${bars}</div>
+      <div style="font-size:9px;color:${p.isCurrent?'#378ADD':'#666'}">${p.label}</div>
+      <div style="font-size:10px;font-weight:500;color:${p.isCurrent?'#378ADD':'#1a1a1a'}">${fmtMin(p.total)||'—'}</div>
+    </div>`;
+  }).join('');
+  legendEl.innerHTML=items.filter(t=>periodMins.some(p=>p.mins[t.id]>0)).map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:3px">
+      <div style="width:8px;height:8px;background:${ITEM_COLORS[i%ITEM_COLORS.length]};border-radius:1px"></div>
+      <span style="font-size:9px;color:#666">${t.name}</span>
+    </div>`).join('');
+
+  // ③ カレンダー
+  const calEl=document.getElementById('dashCalendar');
+  const dows=['日','月','火','水','木','金','土'];
+  let calHTML=`<div style="display:grid;grid-template-columns:36px repeat(7,1fr);gap:2px;margin-bottom:3px"><div></div>${dows.map(d=>`<div style="font-size:9px;color:#aaa;text-align:center">${d}</div>`).join('')}</div>`;
+  // 当月のカレンダー（週モードは当月、月モードは当月、年モードは今年の月別）
+  if(dashMode==='year'){
+    const y=new Date().getFullYear();
+    const monthTotals=[];
+    for(let mo=1;mo<=12;mo++){
+      const last=new Date(y,mo,0).getDate();
+      let tot=0;
+      for(let dd=1;dd<=last;dd++){
+        const data=getDayData(y,mo,dd);
+        if(!data||!data.actuals)continue;
+        items.forEach(t=>{data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{const d2=toMin(a.end)-toMin(a.start);if(d2>0)tot+=d2;});});
+      }
+      monthTotals.push({mo,tot});
+    }
+    const maxT=Math.max(...monthTotals.map(m=>m.tot),1);
+    calHTML=`<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">` +
+      monthTotals.map(({mo,tot})=>{
+        const bg=tot===0?'#f5f5f2':tot<maxT*0.3?'#E6F1FB':tot<maxT*0.6?'#B5D4F4':'#378ADD';
+        const fc=tot<maxT*0.6?'#0C447C':'#fff';
+        return `<div style="text-align:center;background:${bg};border-radius:4px;padding:4px 2px"><div style="font-size:10px;color:#666">${mo}月</div><div style="font-size:9px;font-weight:500;color:${fc}">${tot?fmtMin(tot):'—'}</div></div>`;
+      }).join('') + '</div>';
+  }else{
+    const d=new Date();
+    const y=d.getFullYear(),mo=d.getMonth()+1;
+    const first=new Date(y,mo-1,1).getDay();
+    const last=new Date(y,mo,0).getDate();
+    const cells=[];
+    for(let i=0;i<first;i++)cells.push(null);
+    for(let dd=1;dd<=last;dd++)cells.push({y,m:mo,d:dd});
+    while(cells.length%7)cells.push(null);
+    const weeks=[];
+    for(let i=0;i<cells.length;i+=7)weeks.push(cells.slice(i,i+7));
+    calHTML+=weeks.map(week=>{
+      const label=week.find(c=>c)?`${week.find(c=>c).m}/${week.find(c=>c).d}`:'';
+      return `<div style="display:grid;grid-template-columns:36px repeat(7,1fr);gap:2px;margin-bottom:2px">
+        <div style="font-size:9px;color:#aaa;display:flex;align-items:center;justify-content:flex-end;padding-right:3px">${label}</div>
+        ${week.map(cell=>{
+          if(!cell)return`<div style="height:20px;background:#f9f9f9;border-radius:2px"></div>`;
+          const data=getDayData(cell.y,cell.m,cell.d);
+          let tot=0;
+          if(data&&data.actuals)items.forEach(t=>{data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{const dd=toMin(a.end)-toMin(a.start);if(dd>0)tot+=dd;});});
+          const bg=tot===0?'#f5f5f2':tot<120?'#E6F1FB':tot<240?'#B5D4F4':'#378ADD';
+          const fc=tot<240?'#0C447C':'#fff';
+          return`<div style="height:20px;background:${bg};border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:${fc}">${tot?fmtMin(tot):'—'}</div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+    calHTML+=`<div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+      <div style="width:10px;height:10px;background:#f5f5f2;border-radius:2px;border:0.5px solid #eee"></div><span style="font-size:9px;color:#aaa">0h</span>
+      <div style="width:10px;height:10px;background:#E6F1FB;border-radius:2px"></div><span style="font-size:9px;color:#aaa">〜2h</span>
+      <div style="width:10px;height:10px;background:#B5D4F4;border-radius:2px"></div><span style="font-size:9px;color:#aaa">〜4h</span>
+      <div style="width:10px;height:10px;background:#378ADD;border-radius:2px"></div><span style="font-size:9px;color:#aaa">4h+</span>
+    </div>`;
+  }
+  calEl.innerHTML=calHTML;
+
+  // ④ メモ履歴
+  const memoEl=document.getElementById('dashMemoHistory');
+  memoEl.innerHTML=items.map(t=>{
+    const hist=learningMemoHistory[t.id]||[];
+    if(!hist.length)return '';
+    return `<div style="margin-bottom:8px">
+      <div style="font-size:10px;font-weight:500;color:#1a1a1a;margin-bottom:4px">${t.name}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${hist.slice(0,8).map(m=>`<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#E6F1FB;color:#0C447C;border:0.5px solid #B5D4F4">${m}</span>`).join('')}</div>
+    </div>`;
+  }).join('')||'<div style="font-size:11px;color:#aaa">メモ履歴なし</div>';
+}
+
 function copyPlanToActual(){
   pushUndo();
   actuals=plans.map(p=>({...p,id:nextId++}));
@@ -2370,6 +2722,7 @@ const _d=new Date();_d.setDate(_d.getDate()-_d.getDay());
 weekSunDate={y:_d.getFullYear(),m:_d.getMonth()+1,d:_d.getDate()};
 updateHeader();
 loadTemplates();renderTemplates();
+loadMemoHistory();
 // loadData・render・renderLearningChecksはログイン後に実行
 
 // ---- サイドバーリサイズ ----
