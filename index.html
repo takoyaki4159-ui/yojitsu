@@ -156,13 +156,16 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
       <span style="font-size:12px;font-weight:500;color:#666">📚 学習チェック</span>
       <span id="learningProgress" style="font-size:11px;color:#aaa"></span>
     </div>
-    <button onclick="toggleLearningCheckArea()" id="learningCheckToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
+    <div style="display:flex;gap:4px">
+      <button onclick="setLearningCheckExpanded(!learningCheckExpanded)" id="learningCheckExpandBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 広げる</button>
+      <button onclick="toggleLearningCheckArea()" id="learningCheckToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
+    </div>
   </div>
   <div id="learningCheckList" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 20px"></div>
 </div>
 
 <!-- 日記エリア -->
-<div style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;flex-shrink:0">
+<div id="diaryArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;flex-shrink:0">
   <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:12px;font-weight:500;color:#666">📝 日記</span>
@@ -764,11 +767,12 @@ function renderLearningChecks(){
     const bg=checked?'#E6F1FB':'#fff';
     const borderColor=checked?'#B5D4F4':'#ddd';
     return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:140px;flex-shrink:0">
-      <div style="padding:6px 10px;display:flex;align-items:center;gap:6px;cursor:pointer" onclick="toggleLearningCheck(${t.id},${!checked})">
+      <div style="padding:6px 10px;display:flex;align-items:center;gap:6px;">
         <input type="checkbox" ${checked?'checked':''} ${isAuto?'disabled':''}
           onchange="toggleLearningCheck(${t.id},this.checked)"
+          onclick="event.stopPropagation()"
           style="width:14px;height:14px;cursor:${isAuto?'default':'pointer'};accent-color:#3C3489;flex-shrink:0">
-        <span style="font-size:12px;color:${checked?'#0C447C':'#1a1a1a'};font-weight:${checked?'500':'400'}">${t.name}</span>
+        <span style="font-size:12px;color:${checked?'#0C447C':'#1a1a1a'};font-weight:${checked?'500':'400'};cursor:${isAuto?'default':'pointer'}" onclick="${isAuto?'':'toggleLearningCheck('+t.id+','+!checked+')'}">${t.name}</span>
         ${timeLabel}
       </div>
       <div style="padding:0 10px 8px;position:relative">
@@ -881,12 +885,41 @@ let diaryTimer=null;
 // ---- 学習チェック・日記のトグル ----
 let learningCheckOpen=true;
 let diaryOpen=true;
+let learningCheckExpanded=false; // 展開モード
+
 function toggleLearningCheckArea(){
   learningCheckOpen=!learningCheckOpen;
   const list=document.getElementById('learningCheckList');
   const btn=document.getElementById('learningCheckToggleBtn');
+  const area=document.getElementById('learningCheckArea');
   if(list){list.style.display=learningCheckOpen?'flex':'none';}
   if(btn){btn.textContent=learningCheckOpen?'▲ 閉じる':'▼ 開く';}
+  // 閉じるときは展開モードも解除
+  if(!learningCheckOpen) setLearningCheckExpanded(false);
+}
+
+function setLearningCheckExpanded(expand){
+  learningCheckExpanded=expand;
+  const area=document.getElementById('learningCheckArea');
+  const diary=document.getElementById('diaryArea');
+  const btn=document.getElementById('learningCheckExpandBtn');
+  if(expand){
+    // 展開：日記を隠してチェック欄を広げる
+    if(diary)diary.style.display='none';
+    if(area){
+      area.style.border='0.5px solid #B5D4F4';
+      area.style.background='#fff';
+    }
+    if(btn)btn.textContent='▼ 折りたたむ';
+  }else{
+    // 折りたたみ：日記を戻す
+    if(diary)diary.style.display='';
+    if(area){
+      area.style.border='0.5px solid #ccc';
+      area.style.background='#fff';
+    }
+    if(btn)btn.textContent='▲ 広げる';
+  }
 }
 function toggleDiaryArea(){
   diaryOpen=!diaryOpen;
