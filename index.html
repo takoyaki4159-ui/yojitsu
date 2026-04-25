@@ -762,18 +762,7 @@ function renderLearningChecks(){
     const checked=isAuto||isManual;
     const min=autoChecked[t.id]||0;
     const timeLabel=min>0?`<span style="font-size:11px;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:1px 6px;margin-left:4px">${fmtMin(min)}</span>`:'';
-    const memos=learningMemos[t.id]||[];
-    // シンプル版：テキスト＋✕、区切りに「・」
-    let memoText='';
-    if(memos.length){
-      memoText='<div style="padding:4px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
-      memos.forEach((m,i)=>{
-        const ms=m.replace(/'/g,"\\'");
-        if(i>0)memoText+='<span style="color:#ddd">・</span>';
-        memoText+=`<span style="font-size:11px;color:#444;display:inline-flex;align-items:center;gap:3px">${m}<span style="color:#ccc;cursor:pointer;font-size:10px" onclick="removeMemoTag(${t.id},'${ms}')">✕</span></span>`;
-      });
-      memoText+='</div>';
-    }
+    // タグ表示は廃止（履歴はサジェストから確認・削除可能）
     const bg=checked?'#E6F1FB':'#fff';
     const borderColor=checked?'#B5D4F4':'#ddd';
     return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:160px;flex-shrink:0">
@@ -785,7 +774,6 @@ function renderLearningChecks(){
         <span style="font-size:12px;color:${checked?'#0C447C':'#1a1a1a'};font-weight:${checked?'500':'400'};cursor:${isAuto?'default':'pointer'}" onclick="${isAuto?'':'toggleLearningCheck('+t.id+','+!checked+')'}">${t.name}</span>
         ${timeLabel}
       </div>
-      ${memoText}
       <div style="padding:0 10px 8px;position:relative">
         <input id="memoInput_${t.id}" type="text" placeholder="＋ メモを追加..."
           style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:3px 8px;outline:none;background:#f9f9f9"
