@@ -924,13 +924,16 @@ function setLearningCheckExpanded(expand){
   const area=document.getElementById('learningCheckArea');
   const btn=document.getElementById('learningCheckExpandBtn');
   const list=document.getElementById('learningCheckList');
+  const diary=document.getElementById('diaryArea');
   if(expand){
-    // 広げる：max-heightを400pxに（中身は360pxまでスクロール）
+    // 広げる：日記を隠して、学習チェック領域を400pxに拡大
+    if(diary)diary.style.display='none';
     if(area)area.style.maxHeight='400px';
     if(list)list.style.maxHeight='360px';
     if(btn)btn.textContent='▲ 折りたたむ';
   }else{
     // 折りたたみ：元に戻す
+    if(diary)diary.style.display='';
     if(area)area.style.maxHeight='200px';
     if(list)list.style.maxHeight='160px';
     if(btn)btn.textContent='▼ 広げる';
