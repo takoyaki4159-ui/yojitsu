@@ -1135,34 +1135,35 @@ document.addEventListener('mousemove',e=>{
   const item=arr.find(x=>x.id===id);
   if(!item)return;
   const MIN=START_H*60,MAX=END_H*60;
+  // ドラッグ中の表示用時刻（itemは書き換えない）
+  let dispStart=item.start,dispEnd=item.end;
   if(mode==='move'){
     const len=origEndMin-origStartMin;
     const s=clamp(origStartMin+dMin,MIN,MAX-len);
-    item.start=minToTime(s);item.end=minToTime(s+len);
+    dispStart=minToTime(s);dispEnd=minToTime(s+len);
   }else if(mode==='resizeBot'){
-    item.end=minToTime(clamp(origEndMin+dMin,origStartMin+15,MAX));
+    dispEnd=minToTime(clamp(origEndMin+dMin,origStartMin+15,MAX));
   }else if(mode==='resizeTop'){
-    item.start=minToTime(clamp(origStartMin+dMin,MIN,origEndMin-15));
+    dispStart=minToTime(clamp(origStartMin+dMin,MIN,origEndMin-15));
   }
+  // item本体も更新（mouseup時に保存するため）
+  item.start=dispStart;item.end=dispEnd;
   const el=document.querySelector(`[data-block][data-col="${col}"][data-id="${id}"]`);
   if(el){
-    el.style.top=toPx(item.start,PX)+'px';
-    el.style.height=hPx(item.start,item.end,PX)+'px';
-    // リアルタイム時刻バッジのみ更新（テキストはマウスを離したときに更新）
-    if(mode==='resizeBot'||mode==='resizeTop'||mode==='move'){
-      let badge=el.querySelector('.resize-badge');
-      if(!badge){
-        badge=document.createElement('div');
-        badge.className='resize-badge';
-        badge.style.cssText='position:absolute;top:2px;right:4px;font-size:10px;font-weight:500;color:#fff;padding:1px 6px;border-radius:3px;pointer-events:none;z-index:100;white-space:nowrap;line-height:1.6;';
-        el.appendChild(badge);
-      }
-      const newDur=toMin(item.end)-toMin(item.start);
-      const origDur=origEndMin-origStartMin;
-      const growing=newDur>=origDur;
-      badge.style.background=growing?'#0C447C':'#e53935';
-      badge.textContent=`${item.start} 〜 ${item.end}`;
+    el.style.top=toPx(dispStart,PX)+'px';
+    el.style.height=hPx(dispStart,dispEnd,PX)+'px';
+    // バッジのみ更新（ブロック内テキストは触らない）
+    let badge=el.querySelector('.resize-badge');
+    if(!badge){
+      badge=document.createElement('div');
+      badge.className='resize-badge';
+      badge.style.cssText='position:absolute;top:2px;right:4px;font-size:10px;font-weight:500;color:#fff;padding:1px 6px;border-radius:3px;pointer-events:none;z-index:100;white-space:nowrap;line-height:1.6;';
+      el.appendChild(badge);
     }
+    const newDur=toMin(dispEnd)-toMin(dispStart);
+    const origDur=origEndMin-origStartMin;
+    badge.style.background=newDur>=origDur?'#0C447C':'#e53935';
+    badge.textContent=`${dispStart} 〜 ${dispEnd}`;
   }
   updateStats();
 });
