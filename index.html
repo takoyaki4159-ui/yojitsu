@@ -2928,10 +2928,10 @@ auth.onAuthStateChanged(user => {
 function saveData(){
   const diary = document.getElementById('diaryText') ? document.getElementById('diaryText').value : '';
   // localStorageにも保存（オフライン対応）
-  try { localStorage.setItem('yojitsu:'+dateStr(), JSON.stringify({plans,actuals,nextId,diary,learningChecks})); } catch(e){}
+  try { localStorage.setItem('yojitsu:'+dateStr(), JSON.stringify({plans,actuals,nextId,diary,learningChecks,learningMemos})); } catch(e){}
   // Firebaseに保存
   if (!currentUid) return;
-  db.ref('users/'+currentUid+'/days/'+dateStr()).set({plans,actuals,nextId,diary,learningChecks});
+  db.ref('users/'+currentUid+'/days/'+dateStr()).set({plans,actuals,nextId,diary,learningChecks,learningMemos});
 }
 
 // ---- Firebase版 loadData ----
@@ -2946,12 +2946,30 @@ function loadData(y,m,d){
         const data = JSON.parse(raw);
         data.plans=(data.plans||[]).filter(p=>!p.carryId);
         data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
-        if (!y) { plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;learningChecks=data.learningChecks||{}; const ta=document.getElementById('diaryText');if(ta)ta.value=data.diary||''; }
+        if (!y) {
+          plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;
+          learningChecks=data.learningChecks||{};
+          learningMemos=data.learningMemos||{};
+          // 旧データ（配列形式）を新形式（文字列）へ変換
+          Object.keys(learningMemos).forEach(k=>{
+            if(Array.isArray(learningMemos[k])){
+              learningMemos[k]=learningMemos[k].join('\n');
+            }
+          });
+          const ta=document.getElementById('diaryText');if(ta)ta.value=data.diary||'';
+        }
         return data;
       }
     } catch(e){}
-    if (!y) { plans=[];actuals=[];nextId=200;learningChecks={}; }
+    if (!y) { plans=[];actuals=[];nextId=200;learningChecks={};learningMemos={}; }
     return null;
+  }
+  // 日付切替時：先に画面のデータをクリア（チラつき防止）
+  if (!y) {
+    plans=[];actuals=[];nextId=200;learningChecks={};learningMemos={};
+    const ta=document.getElementById('diaryText');if(ta)ta.value='';
+    setDiaryStatus('');
+    render();renderLearningChecks();
   }
   // Firebase から読み込み
   db.ref('users/'+currentUid+'/days/'+ds).once('value').then(snap => {
@@ -2962,6 +2980,13 @@ function loadData(y,m,d){
       if (!y) {
         plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;
         learningChecks=data.learningChecks||{};
+        learningMemos=data.learningMemos||{};
+        // 旧データ（配列形式）を新形式（文字列）へ変換
+        Object.keys(learningMemos).forEach(k=>{
+          if(Array.isArray(learningMemos[k])){
+            learningMemos[k]=learningMemos[k].join('\n');
+          }
+        });
         const ta=document.getElementById('diaryText');
         if(ta)ta.value=data.diary||'';
         setDiaryStatus('');
@@ -2969,7 +2994,11 @@ function loadData(y,m,d){
       // localStorageにも保存
       try { localStorage.setItem(key, JSON.stringify(data)); } catch(e){}
     } else {
-      if (!y) { plans=[];actuals=[];nextId=200;learningChecks={}; const ta=document.getElementById('diaryText');if(ta)ta.value=''; setDiaryStatus(''); }
+      if (!y) {
+        plans=[];actuals=[];nextId=200;learningChecks={};learningMemos={};
+        const ta=document.getElementById('diaryText');if(ta)ta.value='';
+        setDiaryStatus('');
+      }
     }
     render();renderLearningChecks();
   });
