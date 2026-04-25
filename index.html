@@ -150,7 +150,7 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
 <p style="font-size:10px;color:#999;margin-top:2px;text-align:right;flex-shrink:0">ブロックをクリックで編集・削除　／　テンプレをタイムラインにドラッグで追加</p>
 
 <!-- 学習チェックエリア -->
-<div id="learningCheckArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:visible;flex-shrink:1;display:none;min-height:0">
+<div id="learningCheckArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:visible;flex-shrink:1;display:none;min-height:0;position:relative;z-index:5">
   <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between">
     <div style="display:flex;align-items:center;gap:6px">
       <span style="font-size:12px;font-weight:500;color:#666">📚 学習チェック</span>
@@ -366,6 +366,21 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
       <button class="modal-save" onclick="saveTmpl()">保存</button>
       <button class="modal-del" id="tmplDelBtn" onclick="deleteTmpl()" style="display:none">削除</button>
       <button class="modal-cancel" onclick="closeTmplModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="memoModalBg">
+  <div class="modal">
+    <h3 id="memoModalTitle">メモを追加</h3>
+    <label>履歴から選ぶ</label>
+    <select id="memoHistSelect" onchange="onMemoHistSelect(this)"><option value="">--選択--</option></select>
+    <label>メモ</label>
+    <input type="text" id="memoTextInput" placeholder="例: 学習25">
+    <div class="modal-btns">
+      <button class="modal-save" onclick="saveMemoModal()">保存</button>
+      <button class="modal-del" id="memoDelBtn" onclick="deleteMemoModal()" style="display:none">削除</button>
+      <button class="modal-cancel" onclick="closeMemoModal()">キャンセル</button>
     </div>
   </div>
 </div>
@@ -611,10 +626,16 @@ function loadData(y,m,d){
         plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;
         learningChecks=data.learningChecks||{};
         learningMemos=data.learningMemos||{};
-        // 旧データ（配列形式）を新形式（文字列）へ変換
+        // 旧データを新形式（1個の文字列）へ変換
         Object.keys(learningMemos).forEach(k=>{
-          if(Array.isArray(learningMemos[k])){
-            learningMemos[k]=learningMemos[k].join('\n');
+          let v=learningMemos[k];
+          if(Array.isArray(v)){
+            // 旧配列形式 → 最初の要素を採用
+            learningMemos[k]=v.length?String(v[0]):'';
+          }else if(typeof v==='string'&&v.includes('\n')){
+            // 複数行 → 最初の行を採用
+            const lines=v.split('\n').map(s=>s.trim()).filter(s=>s);
+            learningMemos[k]=lines.length?lines[0]:'';
           }
         });
         const ta=document.getElementById('diaryText');
@@ -765,8 +786,9 @@ function renderLearningChecks(){
     const checked=isAuto||isManual;
     const min=autoChecked[t.id]||0;
     const timeLabel=min>0?`<span style="font-size:11px;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:1px 6px;margin-left:4px">${fmtMin(min)}</span>`:'';
-    // タグ表示は廃止（textarea自体がメモ表示を兼ねる）
+    // メモは1個だけ（モーダルで編集）
     const memoVal=(learningMemos[t.id]||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const hasMemo=!!memoVal;
     const bg=checked?'#E6F1FB':'#fff';
     const borderColor=checked?'#B5D4F4':'#ddd';
     return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:160px;flex-shrink:0">
@@ -778,13 +800,9 @@ function renderLearningChecks(){
         <span style="font-size:12px;color:${checked?'#0C447C':'#1a1a1a'};font-weight:${checked?'500':'400'};cursor:${isAuto?'default':'pointer'}" onclick="${isAuto?'':'toggleLearningCheck('+t.id+','+!checked+')'}">${t.name}</span>
         ${timeLabel}
       </div>
-      <div style="padding:0 10px 8px;position:relative">
-        <textarea id="memoInput_${t.id}" placeholder="＋ メモを追加..."
-          style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:4px 8px;outline:none;background:#f9f9f9;height:60px;resize:vertical;font-family:inherit;line-height:1.5"
-          oninput="onMemoInput(${t.id},this)"
-          onfocus="showMemoSuggest(${t.id},this)"
-          onblur="setTimeout(()=>{hideMemoSuggest(${t.id});flushMemoSave(${t.id});},200)">${memoVal}</textarea>
-        <div id="memoSuggest_${t.id}" style="display:none;position:absolute;left:10px;right:10px;background:#fff;border:0.5px solid #1D9E75;border-radius:4px;z-index:50;bottom:100%;margin-bottom:2px;box-shadow:0 -2px 6px rgba(0,0,0,0.08)"></div>
+      <div style="padding:0 10px 8px;">
+        <div onclick="openMemoModal(${t.id})"
+          style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:5px 8px;background:#f9f9f9;cursor:pointer;min-height:26px;color:${hasMemo?'#333':'#999'};white-space:pre-wrap;word-break:break-word;line-height:1.5">${hasMemo?memoVal:'＋ メモを追加...'}</div>
       </div>
     </div>`;
   }).join('');
@@ -818,104 +836,75 @@ function toggleLearningCheck(id,checked){
   saveData();
   renderLearningChecks();
 }
-// ---- 学習メモ履歴 ----
+// ---- 学習メモ（モーダル方式）----
+let memoModalTid=null; // 編集中のテンプレID
 function loadMemoHistory(){
   try{const r=localStorage.getItem('yojitsu:memoHistory');if(r)learningMemoHistory=JSON.parse(r);}catch(e){}
 }
 function saveMemoHistory(){
   try{localStorage.setItem('yojitsu:memoHistory',JSON.stringify(learningMemoHistory));}catch(e){}
 }
-// textarea入力時：内容を保存しつつ履歴に追加（デバウンス）
-const memoSaveTimers={};
-function onMemoInput(tid,ta){
-  learningMemos[tid]=ta.value;
-  // 履歴は一定時間後にまとめて反映
-  clearTimeout(memoSaveTimers[tid]);
-  memoSaveTimers[tid]=setTimeout(()=>{
-    pushUndo();
-    flushMemoHistory(tid);
-    saveData();
-  },1000);
-  showMemoSuggest(tid,ta);
+function openMemoModal(tid){
+  memoModalTid=tid;
+  const cur=learningMemos[tid]||'';
+  // 既存メモがあれば「編集モード」、なければ「新規追加」
+  const title=document.getElementById('memoModalTitle');
+  const delBtn=document.getElementById('memoDelBtn');
+  if(title)title.textContent=cur?'メモを編集':'メモを追加';
+  if(delBtn)delBtn.style.display=cur?'inline-block':'none';
+  // 履歴ドロップダウンを構築（テンプレ別）
+  const sel=document.getElementById('memoHistSelect');
+  const hist=learningMemoHistory[tid]||[];
+  if(sel){
+    sel.innerHTML='<option value="">--選択--</option>'+hist.map(h=>{
+      const esc=h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      return `<option value="${esc}">${esc}</option>`;
+    }).join('');
+    sel.value='';
+  }
+  // メモ入力欄に現在値をセット
+  const inp=document.getElementById('memoTextInput');
+  if(inp){inp.value=cur;}
+  document.getElementById('memoModalBg').style.display='flex';
+  setTimeout(()=>{if(inp)inp.focus();},50);
 }
-// textareaの中身から履歴を更新（行ごとに分解）
-function flushMemoHistory(tid){
-  const text=learningMemos[tid]||'';
-  const lines=text.split('\n').map(s=>s.trim()).filter(s=>s);
-  if(!learningMemoHistory[tid])learningMemoHistory[tid]=[];
-  lines.forEach(line=>{
-    // 既存にあれば一旦削除→先頭追加（最近使った順）
-    learningMemoHistory[tid]=learningMemoHistory[tid].filter(h=>h!==line);
-    learningMemoHistory[tid].unshift(line);
-  });
-  if(learningMemoHistory[tid].length>20)learningMemoHistory[tid]=learningMemoHistory[tid].slice(0,20);
-  saveMemoHistory();
+function closeMemoModal(){
+  document.getElementById('memoModalBg').style.display='none';
+  memoModalTid=null;
 }
-// blur時の即時保存（デバウンス待ちを破棄して保存）
-function flushMemoSave(tid){
-  if(memoSaveTimers[tid]){
-    clearTimeout(memoSaveTimers[tid]);
-    delete memoSaveTimers[tid];
-    pushUndo();
-    flushMemoHistory(tid);
-    saveData();
+function onMemoHistSelect(sel){
+  // 履歴を選んだらメモ入力欄に反映（編集可）
+  const v=sel.value;
+  if(v){
+    const inp=document.getElementById('memoTextInput');
+    if(inp)inp.value=v;
   }
 }
-function removeMemoHistory(tid,text){
-  if(!learningMemoHistory[tid])return;
-  learningMemoHistory[tid]=learningMemoHistory[tid].filter(m=>m!==text);
-  saveMemoHistory();
-  // サジェストの再描画（textareaにフォーカスがある前提で再描画）
-  const ta=document.getElementById('memoInput_'+tid);
-  if(ta)showMemoSuggest(tid,ta);
-}
-// textareaのカーソル位置がある「現在の行」のテキストを取得
-function getCurrentLine(ta){
-  const v=ta.value;
-  const pos=ta.selectionStart;
-  const before=v.lastIndexOf('\n',pos-1);
-  const after=v.indexOf('\n',pos);
-  const start=before<0?0:before+1;
-  const end=after<0?v.length:after;
-  return {text:v.substring(start,end),start,end};
-}
-function showMemoSuggest(tid,ta){
-  const cur=getCurrentLine(ta);
-  const val=cur.text.trim();
-  const hist=learningMemoHistory[tid]||[];
-  const filtered=val?hist.filter(h=>h.toLowerCase().includes(val.toLowerCase())&&h!==val):hist;
-  let suggest=document.getElementById('memoSuggest_'+tid);
-  if(!suggest)return;
-  let html='';
-  filtered.slice(0,5).forEach(h=>{
-    const hs=h.replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;font-size:11px;color:#444;cursor:pointer;border-top:0.5px solid #eee" onmousedown="event.preventDefault();selectMemoSuggest(${tid},'${hs}')"><span>${h}</span><span style="color:#ccc;font-size:10px;padding:0 4px;cursor:pointer" onmousedown="event.stopPropagation();event.preventDefault();removeMemoHistory(${tid},'${hs}')">✕</span></div>`;
-  });
-  suggest.innerHTML=html;
-  suggest.style.display=html?'block':'none';
-}
-// サジェスト選択：現在の行を置き換える形でtextareaに挿入
-function selectMemoSuggest(tid,text){
-  const ta=document.getElementById('memoInput_'+tid);
-  if(!ta)return;
-  const cur=getCurrentLine(ta);
-  const before=ta.value.substring(0,cur.start);
-  const after=ta.value.substring(cur.end);
-  ta.value=before+text+after;
-  // 保存
-  learningMemos[tid]=ta.value;
+function saveMemoModal(){
+  if(memoModalTid===null)return;
+  const inp=document.getElementById('memoTextInput');
+  const text=(inp?inp.value:'').trim();
+  if(!text){alert('メモを入力してください');return;}
   pushUndo();
-  flushMemoHistory(tid);
+  learningMemos[memoModalTid]=text;
+  // 履歴に追加（最近使った順）
+  if(!learningMemoHistory[memoModalTid])learningMemoHistory[memoModalTid]=[];
+  learningMemoHistory[memoModalTid]=learningMemoHistory[memoModalTid].filter(h=>h!==text);
+  learningMemoHistory[memoModalTid].unshift(text);
+  if(learningMemoHistory[memoModalTid].length>20)learningMemoHistory[memoModalTid]=learningMemoHistory[memoModalTid].slice(0,20);
+  saveMemoHistory();
   saveData();
-  // カーソルを挿入したテキストの末尾に
-  const newPos=cur.start+text.length;
-  ta.focus();
-  setTimeout(()=>ta.setSelectionRange(newPos,newPos),0);
-  hideMemoSuggest(tid);
+  closeMemoModal();
+  renderLearningChecks();
 }
-function hideMemoSuggest(tid){
-  const s=document.getElementById('memoSuggest_'+tid);
-  if(s)s.style.display='none';
+function deleteMemoModal(){
+  if(memoModalTid===null)return;
+  if(!confirm('このメモを削除しますか？'))return;
+  pushUndo();
+  delete learningMemos[memoModalTid];
+  saveData();
+  closeMemoModal();
+  renderLearningChecks();
 }
 
 
@@ -1148,6 +1137,12 @@ document.getElementById('tmplModalBg').addEventListener('keydown',function(e){
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveTmpl();}
 });
 
+document.getElementById('memoModalBg').addEventListener('click',function(e){if(e.target===this)closeMemoModal();});
+document.getElementById('memoModalBg').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemoModal();}
+  if(e.key==='Escape'){closeMemoModal();}
+});
+
 // ---- D&D（テンプレ→タイムライン） ----
 function onTmplDragStart(e,id){
   sortDragId=id;
@@ -1221,8 +1216,10 @@ function clearSelect(){
 document.addEventListener('keydown',e=>{
   const modalOpen=document.getElementById('modalBg').style.display==='flex';
   const tmplOpen=document.getElementById('tmplModalBg').style.display==='flex';
+  const memoOpen=document.getElementById('memoModalBg').style.display==='flex';
   if(modalOpen){if(e.key==='Escape')closeModal();return;}
   if(tmplOpen){if(e.key==='Escape')closeTmplModal();return;}
+  if(memoOpen){if(e.key==='Escape')closeMemoModal();return;}
   if(document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA')return;
   // Ctrl+Z: Undo
   if((e.ctrlKey||e.metaKey)&&e.key==='z'){
