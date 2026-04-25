@@ -1318,9 +1318,10 @@ document.addEventListener('mousemove',e=>{
     const dy=e.clientY-scaleState.startY;
     const factor=Math.pow(2,dy/150);
     // 最小値：tlScrollの実際の表示高さから計算（24時間がちょうど収まる縮尺）
+    // 24:00ラベル分の余白(14px)を引いて、ラベルが画面内に収まるようにする
     const tlScroll=document.getElementById('tlScroll');
     const tlH=tlScroll?tlScroll.clientHeight:400;
-    const pMin=Math.max(PX_MIN, tlH/(END_H-START_H)/60);
+    const pMin=Math.max(0.05, (tlH-14)/(END_H-START_H)/60);
     PX=Math.max(pMin,Math.min(PX_MAX,scaleState.startPX*factor));
     reRenderScale();
     const newScrollTop=scaleState.anchorMin*PX-scaleState.anchorScreenY;
@@ -1790,7 +1791,7 @@ function makeTimeHTML(px){
     const top=(h-START_H)*60*px;
     const label=h===24?'24:00':`${String(h).padStart(2,'0')}:00`;
     const isMid=(h===0||h===24),isMajor=(h%6===0);
-    const labelTop=h===0?top+2:top-7;
+    const labelTop=h===0?top+2:h===24?top-14:top-7;
     let timeColor;
     if(h>=0&&h<6)        timeColor=isMajor?'#3A5A9B':'#6B85B8';
     else if(h>=6&&h<12)  timeColor=isMajor?'#2E6B42':'#5A9A6E';
@@ -2860,7 +2861,7 @@ document.addEventListener('click',e=>{
 
 // PXスケール復元
 (function(){
-  try{const v=parseFloat(localStorage.getItem('yojitsu:px'));if(v>=PX_MIN&&v<=PX_MAX)PX=v;}catch(e){}
+  try{const v=parseFloat(localStorage.getItem('yojitsu:px'));if(v>=0.05&&v<=PX_MAX)PX=v;}catch(e){}
   try{const v=parseFloat(localStorage.getItem('yojitsu:wpx'));if(v>=WPX_MIN&&v<=WPX_MAX)WPX=v;}catch(e){}
 })();
 initToday();
