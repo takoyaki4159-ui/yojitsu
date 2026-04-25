@@ -150,18 +150,17 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
 <p style="font-size:10px;color:#999;margin-top:2px;text-align:right;flex-shrink:0">ブロックをクリックで編集・削除　／　テンプレをタイムラインにドラッグで追加</p>
 
 <!-- 学習チェックエリア -->
-<div id="learningCheckArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;flex-shrink:0;display:none;max-height:200px">
+<div id="learningCheckArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;flex-shrink:1;display:none;min-height:0">
   <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between">
     <div style="display:flex;align-items:center;gap:6px">
       <span style="font-size:12px;font-weight:500;color:#666">📚 学習チェック</span>
       <span id="learningProgress" style="font-size:11px;color:#aaa"></span>
     </div>
     <div style="display:flex;gap:4px">
-      <button onclick="toggleLearningCheckExpanded()" id="learningCheckExpandBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▼ 広げる</button>
       <button onclick="toggleLearningCheckArea()" id="learningCheckToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
     </div>
   </div>
-  <div id="learningCheckList" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;max-height:160px;overflow-y:auto"></div>
+  <div id="learningCheckList" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;overflow-y:auto"></div>
 </div>
 
 <!-- 日記エリア -->
@@ -612,6 +611,12 @@ function loadData(y,m,d){
         plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;
         learningChecks=data.learningChecks||{};
         learningMemos=data.learningMemos||{};
+        // 旧データ（配列形式）を新形式（文字列）へ変換
+        Object.keys(learningMemos).forEach(k=>{
+          if(Array.isArray(learningMemos[k])){
+            learningMemos[k]=learningMemos[k].join('\n');
+          }
+        });
         const ta=document.getElementById('diaryText');
         if(ta)ta.value=data.diary||'';
         setDiaryStatus('');
@@ -741,9 +746,6 @@ function renderLearningChecks(){
   if(!area||!list)return;
   if(!items.length){area.style.display='none';return;}
   area.style.display='block';
-  // 展開ボタンの表示更新
-  const expandBtn=document.getElementById('learningCheckExpandBtn');
-  if(expandBtn)expandBtn.textContent=learningCheckExpanded?'▼ 折りたたむ':'▲ 広げる';
 
   // 実績との自動マッチング
   let totalActualMin=0;
@@ -763,7 +765,8 @@ function renderLearningChecks(){
     const checked=isAuto||isManual;
     const min=autoChecked[t.id]||0;
     const timeLabel=min>0?`<span style="font-size:11px;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:1px 6px;margin-left:4px">${fmtMin(min)}</span>`:'';
-    // タグ表示は廃止（履歴はサジェストから確認・削除可能）
+    // タグ表示は廃止（textarea自体がメモ表示を兼ねる）
+    const memoVal=(learningMemos[t.id]||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const bg=checked?'#E6F1FB':'#fff';
     const borderColor=checked?'#B5D4F4':'#ddd';
     return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:160px;flex-shrink:0">
@@ -776,12 +779,11 @@ function renderLearningChecks(){
         ${timeLabel}
       </div>
       <div style="padding:0 10px 8px;position:relative">
-        <input id="memoInput_${t.id}" type="text" placeholder="＋ メモを追加..."
-          style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:3px 8px;outline:none;background:#f9f9f9"
-          oninput="showMemoSuggest(${t.id},this)"
+        <textarea id="memoInput_${t.id}" placeholder="＋ メモを追加..."
+          style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:4px 8px;outline:none;background:#f9f9f9;height:60px;resize:vertical;font-family:inherit;line-height:1.5"
+          oninput="onMemoInput(${t.id},this)"
           onfocus="showMemoSuggest(${t.id},this)"
-          onblur="setTimeout(()=>hideMemoSuggest(${t.id}),200)"
-          onkeydown="if(event.key==='Enter'&&this.value.trim()){addMemoTag(${t.id},this.value.trim());this.value='';hideMemoSuggest(${t.id});event.preventDefault();}">
+          onblur="setTimeout(()=>{hideMemoSuggest(${t.id});flushMemoSave(${t.id});},200)">${memoVal}</textarea>
         <div id="memoSuggest_${t.id}" style="display:none;position:absolute;left:10px;right:10px;background:#fff;border:0.5px solid #ddd;border-radius:4px;z-index:50;top:100%;margin-top:2px"></div>
       </div>
     </div>`;
@@ -823,72 +825,92 @@ function loadMemoHistory(){
 function saveMemoHistory(){
   try{localStorage.setItem('yojitsu:memoHistory',JSON.stringify(learningMemoHistory));}catch(e){}
 }
-function addMemoTag(tid,text){
-  if(!text.trim())return;
-  if(!learningMemos[tid])learningMemos[tid]=[];
-  if(!learningMemos[tid].includes(text.trim()))learningMemos[tid].push(text.trim());
+// textarea入力時：内容を保存しつつ履歴に追加（デバウンス）
+const memoSaveTimers={};
+function onMemoInput(tid,ta){
+  learningMemos[tid]=ta.value;
+  // 履歴は一定時間後にまとめて反映
+  clearTimeout(memoSaveTimers[tid]);
+  memoSaveTimers[tid]=setTimeout(()=>{
+    pushUndo();
+    flushMemoHistory(tid);
+    saveData();
+  },1000);
+  showMemoSuggest(tid,ta);
+}
+// textareaの中身から履歴を更新（行ごとに分解）
+function flushMemoHistory(tid){
+  const text=learningMemos[tid]||'';
+  const lines=text.split('\n').map(s=>s.trim()).filter(s=>s);
   if(!learningMemoHistory[tid])learningMemoHistory[tid]=[];
-  if(!learningMemoHistory[tid].includes(text.trim()))learningMemoHistory[tid].unshift(text.trim());
+  lines.forEach(line=>{
+    // 既存にあれば一旦削除→先頭追加（最近使った順）
+    learningMemoHistory[tid]=learningMemoHistory[tid].filter(h=>h!==line);
+    learningMemoHistory[tid].unshift(line);
+  });
   if(learningMemoHistory[tid].length>20)learningMemoHistory[tid]=learningMemoHistory[tid].slice(0,20);
   saveMemoHistory();
-  saveData();
-  renderLearningChecks();
 }
-function removeMemoTag(tid,text){
-  if(!learningMemos[tid])return;
-  learningMemos[tid]=learningMemos[tid].filter(m=>m!==text);
-  saveData();
-  renderLearningChecks();
-}
-function editMemoTag(tid,text,el){
-  // タグを削除して入力欄にテキストを入れる
-  if(!learningMemos[tid])return;
-  learningMemos[tid]=learningMemos[tid].filter(m=>m!==text);
-  saveData();
-  renderLearningChecks();
-  // 入力欄にテキストをセットしてフォーカス
-  const input=document.getElementById('memoInput_'+tid);
-  if(input){
-    input.value=text;
-    input.focus();
-    showMemoSuggest(tid,input);
+// blur時の即時保存（デバウンス待ちを破棄して保存）
+function flushMemoSave(tid){
+  if(memoSaveTimers[tid]){
+    clearTimeout(memoSaveTimers[tid]);
+    delete memoSaveTimers[tid];
+    pushUndo();
+    flushMemoHistory(tid);
+    saveData();
   }
 }
 function removeMemoHistory(tid,text){
   if(!learningMemoHistory[tid])return;
   learningMemoHistory[tid]=learningMemoHistory[tid].filter(m=>m!==text);
   saveMemoHistory();
-  renderLearningChecks();
+  // サジェストの再描画（textareaにフォーカスがある前提で再描画）
+  const ta=document.getElementById('memoInput_'+tid);
+  if(ta)showMemoSuggest(tid,ta);
 }
-function showMemoSuggest(tid,input){
-  const val=input.value.trim();
+// textareaのカーソル位置がある「現在の行」のテキストを取得
+function getCurrentLine(ta){
+  const v=ta.value;
+  const pos=ta.selectionStart;
+  const before=v.lastIndexOf('\n',pos-1);
+  const after=v.indexOf('\n',pos);
+  const start=before<0?0:before+1;
+  const end=after<0?v.length:after;
+  return {text:v.substring(start,end),start,end};
+}
+function showMemoSuggest(tid,ta){
+  const cur=getCurrentLine(ta);
+  const val=cur.text.trim();
   const hist=learningMemoHistory[tid]||[];
-  const filtered=val?hist.filter(h=>h.toLowerCase().includes(val.toLowerCase())):hist;
+  const filtered=val?hist.filter(h=>h.toLowerCase().includes(val.toLowerCase())&&h!==val):hist;
   let suggest=document.getElementById('memoSuggest_'+tid);
   if(!suggest)return;
   let html='';
   filtered.slice(0,5).forEach(h=>{
-    const hs=h.replace(/'/g,"\\'");
-    // 選択→入力欄にテキストをセット（修正可能）。Enterで確定。
-    html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;font-size:11px;color:#444;cursor:pointer;border-top:0.5px solid #eee" onmousedown="event.preventDefault();selectMemoSuggest(${tid},'${hs}')"><span>${h}</span><span style="color:#ccc;font-size:10px;padding:0 4px" onmousedown="event.stopPropagation();event.preventDefault();removeMemoHistory(${tid},'${hs}')">✕</span></div>`;
+    const hs=h.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;font-size:11px;color:#444;cursor:pointer;border-top:0.5px solid #eee" onmousedown="event.preventDefault();selectMemoSuggest(${tid},'${hs}')"><span>${h}</span><span style="color:#ccc;font-size:10px;padding:0 4px;cursor:pointer" onmousedown="event.stopPropagation();event.preventDefault();removeMemoHistory(${tid},'${hs}')">✕</span></div>`;
   });
-  if(val&&!(hist.includes(val))){
-    const vs=val.replace(/'/g,"\\'");
-    html+=`<div style="padding:5px 8px;font-size:11px;color:#1D9E75;cursor:pointer;border-top:0.5px solid #eee;display:flex;align-items:center;gap:4px" onmousedown="event.preventDefault();addMemoTag(${tid},'${vs}');document.getElementById('memoInput_${tid}').value='';hideMemoSuggest(${tid})"><span>＋</span><span>「${val}」を新規追加</span></div>`;
-  }
   suggest.innerHTML=html;
   suggest.style.display=html?'block':'none';
 }
+// サジェスト選択：現在の行を置き換える形でtextareaに挿入
 function selectMemoSuggest(tid,text){
-  // サジェストから選択→入力欄に入れて修正可能にする
-  const input=document.getElementById('memoInput_'+tid);
-  if(input){
-    input.value=text;
-    input.focus();
-    // カーソルを末尾に
-    const len=input.value.length;
-    setTimeout(()=>input.setSelectionRange(len,len),0);
-  }
+  const ta=document.getElementById('memoInput_'+tid);
+  if(!ta)return;
+  const cur=getCurrentLine(ta);
+  const before=ta.value.substring(0,cur.start);
+  const after=ta.value.substring(cur.end);
+  ta.value=before+text+after;
+  // 保存
+  learningMemos[tid]=ta.value;
+  pushUndo();
+  flushMemoHistory(tid);
+  saveData();
+  // カーソルを挿入したテキストの末尾に
+  const newPos=cur.start+text.length;
+  ta.focus();
+  setTimeout(()=>ta.setSelectionRange(newPos,newPos),0);
   hideMemoSuggest(tid);
 }
 function hideMemoSuggest(tid){
@@ -902,42 +924,13 @@ let diaryTimer=null;
 // ---- 学習チェック・日記のトグル ----
 let learningCheckOpen=true;
 let diaryOpen=true;
-let learningCheckExpanded=false; // 展開モード
 
 function toggleLearningCheckArea(){
   learningCheckOpen=!learningCheckOpen;
   const list=document.getElementById('learningCheckList');
   const btn=document.getElementById('learningCheckToggleBtn');
-  const area=document.getElementById('learningCheckArea');
   if(list){list.style.display=learningCheckOpen?'flex':'none';}
   if(btn){btn.textContent=learningCheckOpen?'▲ 閉じる':'▼ 開く';}
-  // 閉じるときは展開モードも解除
-  if(!learningCheckOpen) setLearningCheckExpanded(false);
-}
-
-function toggleLearningCheckExpanded(){
-  setLearningCheckExpanded(!learningCheckExpanded);
-}
-
-function setLearningCheckExpanded(expand){
-  learningCheckExpanded=expand;
-  const area=document.getElementById('learningCheckArea');
-  const btn=document.getElementById('learningCheckExpandBtn');
-  const list=document.getElementById('learningCheckList');
-  const diary=document.getElementById('diaryArea');
-  if(expand){
-    // 広げる：日記を隠して、学習チェック領域を400pxに拡大
-    if(diary)diary.style.display='none';
-    if(area)area.style.maxHeight='400px';
-    if(list)list.style.maxHeight='360px';
-    if(btn)btn.textContent='▲ 折りたたむ';
-  }else{
-    // 折りたたみ：元に戻す
-    if(diary)diary.style.display='';
-    if(area)area.style.maxHeight='200px';
-    if(list)list.style.maxHeight='160px';
-    if(btn)btn.textContent='▼ 広げる';
-  }
 }
 function toggleDiaryArea(){
   diaryOpen=!diaryOpen;
