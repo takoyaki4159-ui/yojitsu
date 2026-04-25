@@ -157,11 +157,10 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
       <span id="learningProgress" style="font-size:11px;color:#aaa"></span>
     </div>
     <div style="display:flex;gap:4px">
-      <button onclick="setLearningCheckExpanded(!learningCheckExpanded)" id="learningCheckExpandBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 広げる</button>
       <button onclick="toggleLearningCheckArea()" id="learningCheckToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
     </div>
   </div>
-  <div id="learningCheckList" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 20px"></div>
+  <div id="learningCheckList" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px"></div>
 </div>
 
 <!-- 日記エリア -->
@@ -764,13 +763,20 @@ function renderLearningChecks(){
     const min=autoChecked[t.id]||0;
     const timeLabel=min>0?`<span style="font-size:11px;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:1px 6px;margin-left:4px">${fmtMin(min)}</span>`:'';
     const memos=learningMemos[t.id]||[];
-    const memoTags=memos.map(m=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:10px;padding:1px 8px;font-size:11px;color:#0C447C;cursor:pointer"
-      onclick="editMemoTag(${t.id},'${m.replace(/'/g,"\\'")}',this)">
-      ${m}<span style="color:#aaa;cursor:pointer;margin-left:2px" onclick="event.stopPropagation();removeMemoTag(${t.id},'${m.replace(/'/g,"\\'")}')">✕</span>
-    </span>`).join('');
+    // シンプル版：テキスト＋✕、区切りに「・」
+    let memoText='';
+    if(memos.length){
+      memoText='<div style="padding:4px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
+      memos.forEach((m,i)=>{
+        const ms=m.replace(/'/g,"\\'");
+        if(i>0)memoText+='<span style="color:#ddd">・</span>';
+        memoText+=`<span style="font-size:11px;color:#444;display:inline-flex;align-items:center;gap:3px">${m}<span style="color:#ccc;cursor:pointer;font-size:10px" onclick="removeMemoTag(${t.id},'${ms}')">✕</span></span>`;
+      });
+      memoText+='</div>';
+    }
     const bg=checked?'#E6F1FB':'#fff';
     const borderColor=checked?'#B5D4F4':'#ddd';
-    return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:140px;flex-shrink:0">
+    return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:160px;flex-shrink:0">
       <div style="padding:6px 10px;display:flex;align-items:center;gap:6px;">
         <input type="checkbox" ${checked?'checked':''} ${isAuto?'disabled':''}
           onchange="toggleLearningCheck(${t.id},this.checked)"
@@ -779,19 +785,15 @@ function renderLearningChecks(){
         <span style="font-size:12px;color:${checked?'#0C447C':'#1a1a1a'};font-weight:${checked?'500':'400'};cursor:${isAuto?'default':'pointer'}" onclick="${isAuto?'':'toggleLearningCheck('+t.id+','+!checked+')'}">${t.name}</span>
         ${timeLabel}
       </div>
+      ${memoText}
       <div style="padding:0 10px 8px;position:relative">
-        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:${memos.length?'5px':'0'}">
-          ${memoTags}
-        </div>
-        <div style="position:relative">
-          <input id="memoInput_${t.id}" type="text" placeholder="＋ メモを追加..."
-            style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:3px 8px;outline:none;background:#f9f9f9"
-            oninput="showMemoSuggest(${t.id},this)"
-            onfocus="showMemoSuggest(${t.id},this)"
-            onblur="setTimeout(()=>hideMemoSuggest(${t.id}),200)"
-            onkeydown="if(event.key==='Enter'&&this.value.trim()){addMemoTag(${t.id},this.value.trim());this.value='';hideMemoSuggest(${t.id});event.preventDefault();}">
-          <div id="memoSuggest_${t.id}" style="display:none;position:absolute;left:0;right:0;background:#fff;border:0.5px solid #ddd;border-radius:4px;z-index:50;top:100%"></div>
-        </div>
+        <input id="memoInput_${t.id}" type="text" placeholder="＋ メモを追加..."
+          style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:3px 8px;outline:none;background:#f9f9f9"
+          oninput="showMemoSuggest(${t.id},this)"
+          onfocus="showMemoSuggest(${t.id},this)"
+          onblur="setTimeout(()=>hideMemoSuggest(${t.id}),200)"
+          onkeydown="if(event.key==='Enter'&&this.value.trim()){addMemoTag(${t.id},this.value.trim());this.value='';hideMemoSuggest(${t.id});event.preventDefault();}">
+        <div id="memoSuggest_${t.id}" style="display:none;position:absolute;left:10px;right:10px;background:#fff;border:0.5px solid #ddd;border-radius:4px;z-index:50;top:100%;margin-top:2px"></div>
       </div>
     </div>`;
   }).join('');
@@ -873,18 +875,13 @@ function showMemoSuggest(tid,input){
   const val=input.value.trim();
   const hist=learningMemoHistory[tid]||[];
   const filtered=val?hist.filter(h=>h.toLowerCase().includes(val.toLowerCase())):hist;
-  // 毎回再取得（renderLearningChecks後に古い要素が残ることを防ぐ）
   let suggest=document.getElementById('memoSuggest_'+tid);
-  if(!suggest){
-    suggest=document.createElement('div');
-    suggest.id='memoSuggest_'+tid;
-    suggest.style.cssText='position:absolute;left:0;right:0;top:100%;background:#fff;border:0.5px solid #ddd;border-radius:4px;overflow:hidden;z-index:50;';
-    input.parentNode.appendChild(suggest);
-  }
+  if(!suggest)return;
   let html='';
   filtered.slice(0,5).forEach(h=>{
     const hs=h.replace(/'/g,"\\'");
-    html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;font-size:11px;color:#444;cursor:pointer;border-top:0.5px solid #eee" onmousedown="event.preventDefault();addMemoTag(${tid},'${hs}');document.getElementById('memoInput_${tid}').value='';hideMemoSuggest(${tid})"><span>${h}</span><span style="color:#ccc;font-size:10px;padding:0 4px" onmousedown="event.stopPropagation();event.preventDefault();removeMemoHistory(${tid},'${hs}')">✕</span></div>`;
+    // 選択→入力欄にテキストをセット（修正可能）。Enterで確定。
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;font-size:11px;color:#444;cursor:pointer;border-top:0.5px solid #eee" onmousedown="event.preventDefault();selectMemoSuggest(${tid},'${hs}')"><span>${h}</span><span style="color:#ccc;font-size:10px;padding:0 4px" onmousedown="event.stopPropagation();event.preventDefault();removeMemoHistory(${tid},'${hs}')">✕</span></div>`;
   });
   if(val&&!(hist.includes(val))){
     const vs=val.replace(/'/g,"\\'");
@@ -892,6 +889,18 @@ function showMemoSuggest(tid,input){
   }
   suggest.innerHTML=html;
   suggest.style.display=html?'block':'none';
+}
+function selectMemoSuggest(tid,text){
+  // サジェストから選択→入力欄に入れて修正可能にする
+  const input=document.getElementById('memoInput_'+tid);
+  if(input){
+    input.value=text;
+    input.focus();
+    // カーソルを末尾に
+    const len=input.value.length;
+    setTimeout(()=>input.setSelectionRange(len,len),0);
+  }
+  hideMemoSuggest(tid);
 }
 function hideMemoSuggest(tid){
   const s=document.getElementById('memoSuggest_'+tid);
