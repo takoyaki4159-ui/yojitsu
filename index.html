@@ -345,7 +345,13 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
       <div id="dashCalendar"></div>
     </div>
     <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
-      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">④ メモ履歴</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">
+        <span style="font-size:11px;font-weight:500;color:#666">④ メモ履歴</span>
+        <div style="display:flex;gap:4px">
+          <button id="dashMemoViewDate" class="btn" onclick="setDashMemoView('date')" style="font-size:10px;padding:2px 8px">日付別</button>
+          <button id="dashMemoViewItem" class="btn" onclick="setDashMemoView('item')" style="font-size:10px;padding:2px 8px">項目別</button>
+        </div>
+      </div>
       <div id="dashMemoHistory"></div>
     </div>
   </div>
@@ -579,6 +585,8 @@ function showWeek(){
   renderWeek();
 }
 let dashMode='week';
+let dashMemoView='date'; // 'date' | 'item' （メモ履歴の表示モード）
+try{const v=localStorage.getItem('yojitsu:dashMemoView');if(v==='item'||v==='date')dashMemoView=v;}catch(e){}
 function showDashboard(){
   saveData();
   document.getElementById('pageDaily').classList.remove('active');
@@ -590,6 +598,18 @@ function showDashboard(){
 function setDashMode(mode){
   dashMode=mode;
   renderDashboard();
+}
+function setDashMemoView(view){
+  dashMemoView=view;
+  try{localStorage.setItem('yojitsu:dashMemoView',view);}catch(e){}
+  renderDashboard();
+}
+// ダッシュボードからその日付にジャンプ
+function jumpToDate(y,m,d){
+  cY=y;cM=m;cD=d;
+  render._initialized=false;
+  showDaily();
+  updateHeader();loadData();render();renderLearningChecks();
 }
 function saveAndWeek(){
   saveData();
@@ -2608,16 +2628,107 @@ function renderDashboard(){
   }
   calEl.innerHTML=calHTML;
 
-  // ④ メモ履歴
+  // ④ メモ履歴（期間内のlearningMemos集計）
   const memoEl=document.getElementById('dashMemoHistory');
-  memoEl.innerHTML=items.map(t=>{
-    const hist=learningMemoHistory[t.id]||[];
-    if(!hist.length)return '';
-    return `<div style="margin-bottom:8px">
-      <div style="font-size:10px;font-weight:500;color:#1a1a1a;margin-bottom:4px">${t.name}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:3px">${hist.slice(0,8).map(m=>`<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#E6F1FB;color:#0C447C;border:0.5px solid #B5D4F4">${m}</span>`).join('')}</div>
-    </div>`;
-  }).join('')||'<div style="font-size:11px;color:#aaa">メモ履歴なし</div>';
+  // ボタンの見た目更新
+  const btnDate=document.getElementById('dashMemoViewDate');
+  const btnItem=document.getElementById('dashMemoViewItem');
+  if(btnDate&&btnItem){
+    if(dashMemoView==='date'){
+      btnDate.style.background='#E6F1FB';btnDate.style.color='#0C447C';btnDate.style.borderColor='#B5D4F4';
+      btnItem.style.background='';btnItem.style.color='';btnItem.style.borderColor='';
+    }else{
+      btnItem.style.background='#E6F1FB';btnItem.style.color='#0C447C';btnItem.style.borderColor='#B5D4F4';
+      btnDate.style.background='';btnDate.style.color='';btnDate.style.borderColor='';
+    }
+  }
+  // 期間内の各日付のメモを集計
+  const itemById={};
+  items.forEach(t=>{itemById[t.id]=t;});
+  // memoRecords: [{y,m,d,tid,name,memo}, ...]
+  const memoRecords=[];
+  cur.dates.forEach(({y,m,d})=>{
+    const data=getDayData(y,m,d);
+    if(!data||!data.learningMemos)return;
+    Object.keys(data.learningMemos).forEach(tid=>{
+      let memo=data.learningMemos[tid];
+      // 旧データ互換
+      if(Array.isArray(memo))memo=memo.join('\n');
+      if(typeof memo!=='string'||!memo.trim())return;
+      const item=itemById[tid];
+      if(!item)return;
+      memoRecords.push({y,m,d,tid:Number(tid),name:item.name,memo});
+    });
+  });
+
+  if(!memoRecords.length){
+    memoEl.innerHTML='<div style="font-size:11px;color:#aaa">期間内のメモなし</div>';
+    return;
+  }
+
+  const escHtml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  if(dashMemoView==='date'){
+    // 日付別：日付降順、各日付の中で項目別に
+    memoRecords.sort((a,b)=>{
+      const da=a.y*10000+a.m*100+a.d, db=b.y*10000+b.m*100+b.d;
+      if(db!==da)return db-da;
+      return a.tid-b.tid;
+    });
+    // 日付ごとにグループ化
+    const byDate={};
+    memoRecords.forEach(r=>{
+      const k=mkDateStr(r.y,r.m,r.d);
+      if(!byDate[k])byDate[k]={y:r.y,m:r.m,d:r.d,records:[]};
+      byDate[k].records.push(r);
+    });
+    let html='<div style="max-height:240px;overflow-y:auto;padding-right:4px">';
+    Object.keys(byDate).forEach((k,i,arr)=>{
+      const g=byDate[k];
+      const dow=['日','月','火','水','木','金','土'][new Date(g.y,g.m-1,g.d).getDay()];
+      const dateLabel=`${g.y}/${String(g.m).padStart(2,'0')}/${String(g.d).padStart(2,'0')} (${dow})`;
+      const last=i===arr.length-1;
+      html+=`<div style="margin-bottom:${last?'0':'10px'};padding-bottom:${last?'0':'8px'};${last?'':'border-bottom:0.5px solid #eee'}">
+        <div onclick="jumpToDate(${g.y},${g.m},${g.d})" style="font-size:11px;color:#0C447C;margin-bottom:4px;cursor:pointer;display:inline-block" title="この日に移動">${dateLabel}</div>`;
+      g.records.forEach(r=>{
+        const memoHtml=escHtml(r.memo).replace(/\n/g,'<br>');
+        html+=`<div onclick="jumpToDate(${r.y},${r.m},${r.d})" style="display:flex;gap:6px;margin-bottom:3px;align-items:flex-start;cursor:pointer">
+          <span style="font-size:10px;background:#EEEDFE;color:#3C3489;padding:1px 6px;border-radius:3px;flex-shrink:0;white-space:nowrap">${escHtml(r.name)}</span>
+          <span style="font-size:11px;color:#333;line-height:1.5">${memoHtml}</span>
+        </div>`;
+      });
+      html+=`</div>`;
+    });
+    html+='</div>';
+    memoEl.innerHTML=html;
+  }else{
+    // 項目別：項目順、各項目の中で日付降順
+    const byItem={};
+    memoRecords.forEach(r=>{
+      if(!byItem[r.tid])byItem[r.tid]={name:r.name,records:[]};
+      byItem[r.tid].records.push(r);
+    });
+    Object.keys(byItem).forEach(tid=>{
+      byItem[tid].records.sort((a,b)=>(b.y*10000+b.m*100+b.d)-(a.y*10000+a.m*100+a.d));
+    });
+    let html='<div style="max-height:240px;overflow-y:auto;padding-right:4px">';
+    const tids=Object.keys(byItem);
+    tids.forEach((tid,i)=>{
+      const g=byItem[tid];
+      const last=i===tids.length-1;
+      html+=`<div style="margin-bottom:${last?'0':'10px'}">
+        <div style="font-size:12px;font-weight:500;color:#1a1a1a;margin-bottom:4px">📚 ${escHtml(g.name)}</div>
+        <div style="margin-left:8px">`;
+      g.records.forEach(r=>{
+        const dateLabel=`${String(r.m).padStart(2,'0')}/${String(r.d).padStart(2,'0')}`;
+        const memoHtml=escHtml(r.memo).replace(/\n/g,'<br>');
+        html+=`<div onclick="jumpToDate(${r.y},${r.m},${r.d})" style="font-size:11px;margin-bottom:3px;cursor:pointer;line-height:1.5"><span style="color:#999">${dateLabel}</span>　${memoHtml}</div>`;
+      });
+      html+=`</div></div>`;
+    });
+    html+='</div>';
+    memoEl.innerHTML=html;
+  }
 }
 
 function copyPlanToActual(){
