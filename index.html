@@ -294,7 +294,7 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
     </div>
     <label>終了時刻<span style="font-size:10px;color:#999;margin-left:4px">（翌日の場合はそのまま翌日の時刻）</span></label>
     <div style="display:flex;align-items:center;gap:4px">
-      <input type="number" id="mEndH" min="0" max="47" placeholder="時" tabindex="4"
+      <input type="number" id="mEndH" min="0" max="23" placeholder="時" tabindex="4"
         style="width:60px;font-size:13px;padding:5px 8px;border:0.5px solid #ccc;border-radius:6px;text-align:center">
       <span style="font-size:14px;color:#666">:</span>
       <input type="number" id="mEndM" min="0" max="45" step="15" placeholder="分" tabindex="5"
@@ -498,18 +498,8 @@ function dColor(pl,a){
 // ---- 日またぎ ----
 function isOvernight(s,e){
   if(!s||!e)return false;
-  // 終了時刻が24以上（例:25:00）なら翌日時刻として日またぎ確定
-  const eh=parseInt((e||'').split(':')[0]||0);
-  if(eh>=24)return true;
   if(e==='00:00')return true; // 翌日0時ちょうども日またぎ
   return toMin(e)<=toMin(s);
-}
-// 翌日時刻（25:00等）を当日時刻（01:00等）に正規化する
-function normalizeEndTime(e){
-  if(!e)return e;
-  const[h,m]=e.split(':').map(Number);
-  if(h>=24)return `${String(h-24).padStart(2,'0')}:${String(m||0).padStart(2,'0')}`;
-  return e;
 }
 function mkDateStr(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
 function dateStr(){return mkDateStr(cY,cM,cD);}
@@ -1327,10 +1317,9 @@ document.addEventListener('mousemove',e=>{
   if(scaleState){
     const dy=e.clientY-scaleState.startY;
     const factor=Math.pow(2,dy/150);
-    // 最小値：CSS変数--tl-hから実際の高さを取得
+    // 最小値：tlScrollの実際の表示高さから計算（24時間がちょうど収まる縮尺）
     const tlScroll=document.getElementById('tlScroll');
-    const cssH=getComputedStyle(document.documentElement).getPropertyValue('--tl-h');
-    const tlH=cssH?parseFloat(cssH):tlScroll?tlScroll.offsetHeight:400;
+    const tlH=tlScroll?tlScroll.clientHeight:400;
     const pMin=Math.max(PX_MIN, tlH/(END_H-START_H)/60);
     PX=Math.max(pMin,Math.min(PX_MAX,scaleState.startPX*factor));
     reRenderScale();
@@ -1873,17 +1862,9 @@ function snapModalMin(el){
 function clampModalH(el){
   let v=parseInt(el.value);
   if(isNaN(v))return;
-  if(v<0)v=0;
-  const maxH=(el.id==="mEndH")?47:23;
-  if(v>maxH)v=maxH;
+  if(v<0)v=0;if(v>23)v=23;
   el.value=v;
 }
-
-
-
-
-
-
 
 // ---- タスクmodal ----
 function openAdd(col){
@@ -1903,13 +1884,7 @@ function openEdit(col,id){
   document.getElementById('modalTitle').textContent=(col==='plan'?'予定':'実績')+'を編集';
   document.getElementById('mName').value=item.name;
   setModalTime('mStartH','mStartM',item.start);
-  // 日またぎブロックは終了を翌日時刻（25:00等）形式で表示
-  let dispEnd=item.end;
-  if(isOvernight(item.start,item.end)){
-    const[eh,em]=item.end.split(':').map(Number);
-    dispEnd=`${String(eh+24).padStart(2,'0')}:${String(em||0).padStart(2,'0')}`;
-  }
-  setModalTime('mEndH','mEndM',dispEnd);
+  setModalTime('mEndH','mEndM',item.end);
   document.getElementById('modalDelBtn').style.display='block';
   document.getElementById('modalBg').style.display='flex';
   setTimeout(()=>{
@@ -1969,18 +1944,17 @@ function saveModal(){
     if(overlaps.length>0){alertOverlap(overlaps,'plan');return;}
   }
 
-  // 翌日時刻（25:00等）をデータ保存用に正規化（例:25:00→01:00）
-  const endNorm=overnight?normalizeEndTime(end):end;
   const arr=modalCol==='plan'?plans:actuals;
   if(modalMode==='add'){
-    const item={id:nextId++,name,start,end:endNorm};
+    const item={id:nextId++,name,start,end};
     arr.push(item);
     if(overnight)saveCarryOver(modalCol,item);
   }else{
     const item=arr.find(x=>x.id===modalEditId);
     if(item){
       const was=isOvernight(item.start,item.end);
-      item.name=name;item.start=start;item.end=endNorm;
+
+      item.name=name;item.start=start;item.end=end;
       if(overnight)saveCarryOver(modalCol,item);
       else if(was)removeCarryOver(modalCol,item.id);
     }
