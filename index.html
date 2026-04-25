@@ -741,6 +741,9 @@ function renderLearningChecks(){
   if(!area||!list)return;
   if(!items.length){area.style.display='none';return;}
   area.style.display='block';
+  // 展開ボタンの表示更新
+  const expandBtn=document.getElementById('learningCheckExpandBtn');
+  if(expandBtn)expandBtn.textContent=learningCheckExpanded?'▼ 折りたたむ':'▲ 広げる';
 
   // 実績との自動マッチング
   let totalActualMin=0;
@@ -761,8 +764,9 @@ function renderLearningChecks(){
     const min=autoChecked[t.id]||0;
     const timeLabel=min>0?`<span style="font-size:11px;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:1px 6px;margin-left:4px">${fmtMin(min)}</span>`:'';
     const memos=learningMemos[t.id]||[];
-    const memoTags=memos.map(m=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:10px;padding:1px 8px;font-size:11px;color:#0C447C">
-      ${m}<span style="color:#aaa;cursor:pointer;margin-left:2px" onclick="removeMemoTag(${t.id},'${m.replace(/'/g,"\\'")}')">✕</span>
+    const memoTags=memos.map(m=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:10px;padding:1px 8px;font-size:11px;color:#0C447C;cursor:pointer"
+      onclick="editMemoTag(${t.id},'${m.replace(/'/g,"\\'")}',this)">
+      ${m}<span style="color:#aaa;cursor:pointer;margin-left:2px" onclick="event.stopPropagation();removeMemoTag(${t.id},'${m.replace(/'/g,"\\'")}')">✕</span>
     </span>`).join('');
     const bg=checked?'#E6F1FB':'#fff';
     const borderColor=checked?'#B5D4F4':'#ddd';
@@ -844,6 +848,20 @@ function removeMemoTag(tid,text){
   learningMemos[tid]=learningMemos[tid].filter(m=>m!==text);
   saveData();
   renderLearningChecks();
+}
+function editMemoTag(tid,text,el){
+  // タグを削除して入力欄にテキストを入れる
+  if(!learningMemos[tid])return;
+  learningMemos[tid]=learningMemos[tid].filter(m=>m!==text);
+  saveData();
+  renderLearningChecks();
+  // 入力欄にテキストをセットしてフォーカス
+  const input=document.getElementById('memoInput_'+tid);
+  if(input){
+    input.value=text;
+    input.focus();
+    showMemoSuggest(tid,input);
+  }
 }
 function removeMemoHistory(tid,text){
   if(!learningMemoHistory[tid])return;
