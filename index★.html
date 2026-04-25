@@ -1,0 +1,3018 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予実タイムライン</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;overflow:hidden;height:100vh;background:#f5f5f2;padding:12px}
+.page{display:none}.page.active{display:block}.page.active.flex-page{display:flex}
+.btn{font-size:12px;padding:5px 12px;border:0.5px solid #ccc;border-radius:8px;background:#fff;color:#1a1a1a;cursor:pointer}
+.btn:hover{background:#f0f0f0}
+.btn-plan{background:#E6F1FB;color:#0C447C;border-color:#B5D4F4}
+.btn-actual{background:#E1F5EE;color:#085041;border-color:#9FE1CB}
+.btn-today{background:#FAEEDA;color:#633806;border-color:#FAC775;font-weight:500}
+.btn-week{background:#EEEDFE;color:#3C3489;border-color:#AFA9EC;font-weight:500}
+.nav-btn{font-size:15px;padding:3px 10px;border:0.5px solid #ccc;border-radius:6px;background:#fff;color:#1a1a1a;cursor:pointer;line-height:1.4}
+.nav-btn:hover{background:#f0f0f0}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.stat{background:#f0ede6;border-radius:8px;padding:8px 12px}
+.stat-label{font-size:11px;color:#666;margin-bottom:2px}
+.stat-value{font-size:16px;font-weight:500}
+.pbar-wrap{height:4px;background:#ddd;border-radius:2px;overflow:hidden;margin-top:4px}
+.pbar{height:100%;border-radius:2px;transition:width .3s,background .3s}
+.legend{display:flex;gap:14px;margin-bottom:10px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#666}
+.leg-dot{width:12px;height:12px;border-radius:3px}
+.save-indicator{font-size:11px;color:#999;padding:3px 8px;border-radius:4px}
+.save-ok{color:#1D9E75;background:#E1F5EE}
+.date-display{font-size:13px;padding:5px 10px;border:0.5px solid #ccc;border-radius:8px;min-width:110px;text-align:center;background:#fff}
+.date-display.is-today{border-color:#FAC775;background:#FAEEDA;color:#633806;font-weight:500}
+.daily-layout{display:grid;grid-template-columns:var(--sidebar-w,160px) 16px 1fr;gap:0;align-items:stretch;flex:1;min-height:0;overflow:hidden}
+.sidebar{background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-height:150px}
+.sidebar-head{padding:8px 10px;font-size:11px;font-weight:500;color:#666;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between}
+.sidebar-list{padding:6px;overflow-y:auto;flex:1}
+.tmpl-item{padding:6px 8px;margin-bottom:4px;border-radius:6px;background:#f5f5f2;border:0.5px solid #ddd;cursor:grab;font-size:11px;user-select:none;transition:background .15s}
+.tmpl-item:hover{background:#eee}
+.tmpl-item.dragging{opacity:0.4}
+.tmpl-item-name{font-weight:500;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tmpl-item-dur{font-size:10px;color:#888;margin-top:1px}
+.tmpl-add-btn{width:100%;font-size:11px;padding:5px;border:0.5px dashed #ccc;border-radius:6px;background:none;color:#999;cursor:pointer;margin-top:4px}
+.tmpl-add-btn:hover{background:#f5f5f2;color:#666}
+.tl-outer{border:0.5px solid #ccc;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;background:#fff}
+.tl-colhead{display:grid;grid-template-columns:44px 1fr 1fr;flex-shrink:0}
+.tl-colhead-time{background:#f5f5f2;border-right:0.5px solid #ddd;padding:8px 4px}
+.tl-colhead-plan{padding:8px;font-size:12px;font-weight:500;text-align:center;background:#2E4057;color:#fff;border-right:0.5px solid rgba(255,255,255,0.15)}
+.tl-colhead-actual{padding:8px;font-size:12px;font-weight:500;text-align:center;background:#1e5050;color:#fff}
+.tl-scroll{overflow-y:auto;height:var(--tl-h,400px);min-height:150px}
+.tl-inner{display:grid;grid-template-columns:44px 1fr 1fr}
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:20;align-items:flex-start;justify-content:center;padding-top:80px}
+.modal{background:#fff;border:0.5px solid #ccc;border-radius:12px;padding:16px;width:270px}
+.modal h3{font-size:13px;font-weight:500;margin-bottom:12px}
+.modal label{font-size:11px;color:#666;display:block;margin-bottom:2px;margin-top:8px}
+.modal input[type=text],.modal input[type=time],.modal input[type=number]{width:100%;font-size:13px;padding:5px 8px;border:0.5px solid #ccc;border-radius:6px;background:#fff;color:#1a1a1a}
+.modal input[type=number]::-webkit-inner-spin-button,.modal input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.modal input[type=number]{-moz-appearance:textfield}
+.modal input:focus{outline:none;border-color:#378ADD}
+.modal-btns{display:flex;gap:8px;margin-top:14px}
+.modal-btns button{flex:1;font-size:12px;padding:6px;border-radius:6px;cursor:pointer;border:none}
+.modal-save{background:#E6F1FB;color:#0C447C}
+.modal-del{background:#FAECE7;color:#712B13}
+.modal-cancel{background:#f0f0f0;color:#666}
+
+.tmpl-cat-header{padding:6px 8px 4px;margin-top:6px;cursor:grab;display:flex;align-items:center;gap:4px;border-radius:4px;border-top:2px solid transparent;transition:border-color .15s;}
+.tmpl-cat-header:hover{background:#eee;}
+.tmpl-cat-arrow{font-size:10px;color:#888;width:10px;}
+.tmpl-cat-name{font-size:11px;font-weight:600;color:#555;}
+
+.sidebar-resizer{width:16px;cursor:col-resize;background:transparent;position:relative;z-index:10;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.sidebar-resizer::before{content:'';display:block;width:4px;height:60px;background:#bbb;border-radius:2px;transition:background .15s}
+.sidebar-resizer:hover::before,.sidebar-resizer.dragging::before{background:#378ADD}
+
+.tl-v-resizer{height:18px;cursor:ns-resize;background:#e8e4dc;border-top:1px solid #ccc;border-bottom:1px solid #ccc;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;gap:3px}
+.tl-v-resizer:hover,.tl-v-resizer.dragging{background:#B5D4F4}
+.tl-v-resizer::before{content:'';display:block;width:60px;height:4px;background:#bbb;border-radius:2px}
+.tl-v-resizer:hover::before,.tl-v-resizer.dragging::before{background:#378ADD}
+
+/* カレンダーピッカー */
+.cal-popup{display:none;position:fixed;z-index:50;background:#fff;border:0.5px solid #ccc;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:12px;width:240px;user-select:none}
+.cal-popup.open{display:block}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-title{font-size:13px;font-weight:500;color:#1a1a1a;cursor:pointer;padding:2px 6px;border-radius:4px}
+.cal-title:hover{background:#f0f0f0}
+.cal-nav{font-size:15px;padding:2px 8px;border:none;background:none;cursor:pointer;color:#666;border-radius:4px;line-height:1.4}
+.cal-nav:hover{background:#f0f0f0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow{font-size:10px;color:#999;text-align:center;padding:2px 0;font-weight:500}
+.cal-day{font-size:12px;text-align:center;padding:4px 2px;border-radius:6px;cursor:pointer;color:#1a1a1a;line-height:1.4}
+.cal-day:hover{background:#E6F1FB;color:#0C447C}
+.cal-day.today{background:#FAEEDA;color:#633806;font-weight:600}
+.cal-day.selected{background:#2E4057;color:#fff;font-weight:600}
+.cal-day.other-month{color:#ccc}
+.cal-day.holiday{color:#993C1D}
+.cal-day.sat{color:#0C447C}
+</style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<!-- 日次ページ -->
+<div class="page flex-page active" id="pageDaily" style="flex-direction:column;height:calc(100vh - 24px);overflow:hidden;padding-bottom:8px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;flex-shrink:0">
+  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <button class="nav-btn" onclick="changeDate(-1)">‹</button>
+    <span id="dateDisplay" class="date-display" onclick="toggleCalPicker()" style="cursor:pointer" title="クリックでカレンダーを開く"></span>
+    <button class="nav-btn" onclick="changeDate(1)">›</button>
+    <span style="font-size:12px;color:#666" id="dayLabel"></span>
+    <button class="btn btn-today" id="btnToday" onclick="goToday()">今日</button>
+    <button class="btn" onclick="showDashboard()" style="background:#EEEDFE;color:#3C3489;border-color:#AFA9EC;font-size:11px">📊</button>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <button class="btn btn-plan" onclick="openAdd('plan')">＋ 予定</button>
+    <button class="btn btn-actual" onclick="openAdd('actual')">＋ 実績</button>
+    <button class="btn btn-week" onclick="saveAndWeek()">週表示</button>
+    <button class="btn btn-week" onclick="saveAndMonth()">月表示</button>
+    <button class="btn" onclick="copyPlanToActual()">予定→実績</button>
+    <button class="btn" onclick="resetToday()" style="color:#999;border-color:#ddd">今日リセット</button>
+    <button class="btn" onclick="resetScale()" style="color:#999;border-color:#ddd" title="タイムラインの縮尺をデフォルトに戻す">縮尺リセット</button>
+    <button class="btn" onclick="importData()" style="color:#085041;border-color:#9FE1CB">インポート</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="onImportFile(this)">
+    <button class="btn" onclick="exportData()" style="color:#085041;border-color:#9FE1CB">エクスポート</button>
+    <button class="btn" onclick="copyText()">出力</button>
+  </div>
+</div>
+
+<div class="daily-layout" style="flex:1;overflow:hidden;min-height:0">
+  <div class="sidebar" id="sidebar" style="height:100%">
+    <div class="sidebar-head">
+      <span>テンプレート</span>
+      <button style="font-size:10px;padding:2px 6px;border:0.5px solid #ccc;border-radius:4px;background:#fff;cursor:pointer" onclick="openTmplEdit(null)">＋</button>
+    </div>
+    <div class="sidebar-list" id="tmplList"></div>
+  </div>
+  <div class="sidebar-resizer" id="sidebarResizer"></div>
+  <div class="tl-outer" style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden">
+    <div class="tl-colhead">
+      <div class="tl-colhead-time"></div>
+      <div class="tl-colhead-plan">予　定</div>
+      <div class="tl-colhead-actual">実　績</div>
+    </div>
+    <div class="tl-scroll" id="tlScroll" style="flex:1;overflow-y:auto;height:auto">
+      <div class="tl-inner" id="tlGrid" ondragover="onDragOver(event)"></div>
+    </div>
+    <div class="tl-v-resizer" id="tlVResizer" style="display:none"></div>
+  </div>
+</div>
+<p style="font-size:10px;color:#999;margin-top:2px;text-align:right;flex-shrink:0">ブロックをクリックで編集・削除　／　テンプレをタイムラインにドラッグで追加</p>
+
+<!-- 学習チェックエリア -->
+<div id="learningCheckArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:visible;flex-shrink:1;display:none;min-height:0;position:relative;z-index:5">
+  <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:12px;font-weight:500;color:#666">📚 学習チェック</span>
+      <span id="learningProgress" style="font-size:11px;color:#aaa"></span>
+    </div>
+    <div style="display:flex;gap:4px">
+      <button onclick="toggleLearningCheckArea()" id="learningCheckToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
+    </div>
+  </div>
+  <div id="learningCheckList" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;overflow:visible"></div>
+</div>
+
+<!-- 日記エリア -->
+<div id="diaryArea" style="margin-top:8px;background:#fff;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;flex-shrink:0">
+  <div style="padding:10px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;font-weight:500;color:#666">📝 日記</span>
+      <span id="diaryStatus" style="font-size:11px;color:#aaa"></span>
+    </div>
+    <button onclick="toggleDiaryArea()" id="diaryToggleBtn" style="font-size:11px;padding:2px 8px;border:0.5px solid #ccc;border-radius:4px;background:#fff;color:#666;cursor:pointer">▲ 閉じる</button>
+  </div>
+  <div id="diaryBody">
+  <textarea id="diaryText"
+    placeholder="今日の振り返り、気づき、メモなど..."
+    style="width:100%;min-height:60px;padding:12px 14px;border:none;resize:vertical;font-size:13px;font-family:inherit;color:#1a1a1a;background:#fff;outline:none;line-height:1.7"
+    oninput="onDiaryInput()"
+  ></textarea>
+  </div>
+</div>
+</div>
+
+<!-- 週次ページ -->
+<div class="page" id="pageWeek" style="zoom:0.9">
+<div style="margin:0 8px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+  <div style="display:flex;align-items:center;gap:6px">
+    <button class="nav-btn" onclick="changeWeek(-1)">‹</button>
+    <span id="weekTitle" class="date-display" style="min-width:160px;cursor:pointer" onclick="toggleCalPickerWeek()" title="クリックでカレンダーを開く"></span>
+    <button class="nav-btn" onclick="changeWeek(1)">›</button>
+    <button class="btn btn-today" id="btnThisWeek" onclick="goThisWeek()">今週</button>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="btn btn-week" onclick="showMonthFromWeek()">月表示</button>
+    <button class="btn btn-week" onclick="showDaily()">日次に戻る</button>
+  </div>
+</div>
+
+<div style="border:0.5px solid #ccc;border-radius:12px;overflow:hidden;background:#fff">
+  <div id="weekScrollArea" style="overflow-y:auto;-webkit-overflow-scrolling:touch">
+      <div style="display:grid;grid-template-columns:36px repeat(7,1fr);position:sticky;top:0;z-index:2;background:#fff">
+        <div style="background:#f5f5f2;border-right:0.5px solid #ddd;border-bottom:0.5px solid #ddd;padding:6px 2px"></div>
+        <div id="weekDayHeaders" style="display:contents"></div>
+      </div>
+      <div id="weekGrid" style="display:grid;grid-template-columns:36px repeat(7,1fr)"></div>
+  </div>
+</div>
+<p style="font-size:11px;color:#999;margin-top:6px;text-align:right">日付列をクリックするとその日の日次画面に移動します</p>
+
+<!-- 週次学習チェックエリア -->
+<div id="weekLearningArea" style="margin-top:12px;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;background:#fff;display:none">
+  <div style="padding:8px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;font-size:12px;font-weight:500;color:#666;display:flex;align-items:center;gap:8px">
+    📚 今週の学習チェック
+    <span id="weekLearningTotal" style="font-size:11px;color:#085041;background:#E1F5EE;border-radius:4px;padding:2px 8px;display:none"></span>
+  </div>
+  <div id="weekLearning" style="display:grid;grid-template-columns:36px repeat(7,1fr)"></div>
+</div>
+
+<!-- 週次日記エリア -->
+<div style="margin-top:12px;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;background:#fff">
+  <div style="padding:8px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;font-size:12px;font-weight:500;color:#666">📝 今週の日記</div>
+  <div id="weekDiary" style="display:grid;grid-template-columns:36px repeat(7,1fr)"></div>
+</div>
+</div>
+</div>
+
+<!-- 月次ページ -->
+<div class="page" id="pageMonth">
+<div style="margin:0 8px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+  <div style="display:flex;align-items:center;gap:6px">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <span id="monthTitle" class="date-display" style="min-width:120px;text-align:center"></span>
+    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+    <button class="btn btn-today" id="btnThisMonth" onclick="goThisMonth()">今月</button>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="btn btn-week" onclick="showDailyFromMonth()">日次へ</button>
+    <button class="btn btn-week" onclick="showWeekFromMonth()">週表示へ</button>
+  </div>
+</div>
+
+<!-- 月カレンダーグリッド -->
+<div style="border:0.5px solid #ccc;border-radius:12px;overflow:hidden;background:#fff">
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);background:#2E4057">
+    <div style="padding:6px;text-align:center;font-size:11px;font-weight:500;color:#e88;border-right:0.5px solid rgba(255,255,255,0.1)">日</div>
+    <div style="padding:6px;text-align:center;font-size:11px;font-weight:500;color:#fff;border-right:0.5px solid rgba(255,255,255,0.1)">月</div>
+    <div style="padding:6px;text-align:center;font-size:11px;font-weight:500;color:#fff;border-right:0.5px solid rgba(255,255,255,0.1)">火</div>
+    <div style="padding:6px;text-align:center;font-size:11px;font-weight:500;color:#fff;border-right:0.5px solid rgba(255,255,255,0.1)">水</div>
+    <div style="padding:6px;text-align:center;font-size:11px;font-weight:500;color:#fff;border-right:0.5px solid rgba(255,255,255,0.1)">木</div>
+    <div style="padding:6px;text-align:center;font-size:11px;font-weight:500;color:#fff;border-right:0.5px solid rgba(255,255,255,0.1)">金</div>
+    <div style="padding:6px;text-align:center;font-size:11px;font-weight:500;color:#88f">土</div>
+  </div>
+  <div id="monthGrid" style="display:grid;grid-template-columns:repeat(7,1fr)"></div>
+</div>
+<p style="font-size:11px;color:#999;margin-top:6px;text-align:right">日付をクリックするとその日の日次画面に移動します</p>
+
+<!-- 月次学習チェック集計 -->
+<div id="monthLearningArea" style="margin-top:12px;border:0.5px solid #ccc;border-radius:12px;overflow:hidden;background:#fff;display:none">
+  <div style="padding:8px 14px;background:#f5f5f2;border-bottom:0.5px solid #ddd;font-size:12px;font-weight:500;color:#666;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    📚 今月の学習まとめ
+    <span id="monthLearningTotal" style="font-size:11px;color:#085041;background:#E1F5EE;border-radius:4px;padding:2px 8px"></span>
+  </div>
+  <div id="monthLearningDetail" style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 24px"></div>
+</div>
+
+</div>
+</div>
+
+<!-- 重複アラートモーダル -->
+<div id="overlapAlertBg" onclick="closeOverlapAlert()" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:30;align-items:center;justify-content:center">
+  <div onclick="event.stopPropagation()" style="background:#fff;border-radius:12px;padding:20px 24px;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.15)">
+    <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-bottom:10px" id="overlapAlertTitle"></div>
+    <div style="font-size:13px;color:#444;margin-bottom:14px;line-height:1.7" id="overlapAlertBody"></div>
+    <div style="font-size:11px;color:#999;text-align:center">画面のどこかをクリックすると閉じます</div>
+  </div>
+</div>
+
+<!-- タスク modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">タスクを追加</h3>
+    <label>タスク名</label>
+    <input type="text" id="mName" placeholder="例: 定例会議" tabindex="1">
+    <label>開始時刻</label>
+    <div style="display:flex;align-items:center;gap:4px">
+      <input type="number" id="mStartH" min="0" max="23" placeholder="時" tabindex="2"
+        style="width:60px;font-size:13px;padding:5px 8px;border:0.5px solid #ccc;border-radius:6px;text-align:center">
+      <span style="font-size:14px;color:#666">:</span>
+      <input type="number" id="mStartM" min="0" max="45" step="15" placeholder="分" tabindex="3"
+        style="width:60px;font-size:13px;padding:5px 8px;border:0.5px solid #ccc;border-radius:6px;text-align:center">
+    </div>
+    <label>終了時刻<span style="font-size:10px;color:#999;margin-left:4px">（翌日の場合はそのまま翌日の時刻）</span></label>
+    <div style="display:flex;align-items:center;gap:4px">
+      <input type="number" id="mEndH" min="0" max="23" placeholder="時" tabindex="4"
+        style="width:60px;font-size:13px;padding:5px 8px;border:0.5px solid #ccc;border-radius:6px;text-align:center">
+      <span style="font-size:14px;color:#666">:</span>
+      <input type="number" id="mEndM" min="0" max="45" step="15" placeholder="分" tabindex="5"
+        style="width:60px;font-size:13px;padding:5px 8px;border:0.5px solid #ccc;border-radius:6px;text-align:center">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-save" onclick="saveModal()" tabindex="6">保存</button>
+      <button class="modal-del" id="modalDelBtn" onclick="deleteModal()" style="display:none" tabindex="7">削除</button>
+      <button class="modal-cancel" onclick="closeModal()" tabindex="8">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ダッシュボードページ -->
+<div class="page" id="pageDashboard" style="height:calc(100vh - 24px);overflow-y:auto;padding:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1a1a1a">学習ダッシュボード</span>
+      <span id="dashPeriodLabel" style="font-size:12px;color:#378ADD;font-weight:500"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="display:flex;gap:4px">
+        <button id="dashBtnWeek" class="btn" onclick="setDashMode('week')" style="font-size:11px;padding:3px 10px">週</button>
+        <button id="dashBtnMonth" class="btn" onclick="setDashMode('month')" style="font-size:11px;padding:3px 10px">月</button>
+        <button id="dashBtnYear" class="btn" onclick="setDashMode('year')" style="font-size:11px;padding:3px 10px">年</button>
+      </div>
+      <button class="btn" onclick="showDaily()" style="font-size:11px;padding:3px 10px">日次に戻る</button>
+    </div>
+  </div>
+
+  <div id="dashStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">① 項目別時間</div>
+      <div id="dashBarChart"></div>
+    </div>
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">② 期間別比較（積み上げ）</div>
+      <div id="dashStackChart" style="display:flex;gap:4px;align-items:flex-end;height:90px;margin-bottom:6px"></div>
+      <div id="dashStackLegend" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">③ カレンダー</div>
+      <div id="dashCalendar"></div>
+    </div>
+    <div style="background:#fff;border:0.5px solid #ccc;border-radius:10px;padding:10px 12px">
+      <div style="font-size:11px;font-weight:500;color:#666;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid #eee">④ メモ履歴</div>
+      <div id="dashMemoHistory"></div>
+    </div>
+  </div>
+</div>
+
+<!-- テンプレート modal -->
+<div class="modal-bg" id="tmplModalBg">
+  <div class="modal">
+    <h3 id="tmplModalTitle">テンプレートを追加</h3>
+    <label>カテゴリ</label>
+    <select id="tmCatSelect" onchange="onCatSelectChange(this)"><option value="">（なし）</option></select>
+    <input type="text" id="tmCatNew" placeholder="新しいカテゴリ名" style="display:none;margin-top:4px">
+    <label>タスク名</label>
+    <input type="text" id="tmName" placeholder="例: 定例会議">
+    <label>時間（分）</label>
+    <input type="number" id="tmDur" min="5" step="5" placeholder="例: 30">
+    <div class="modal-btns">
+      <button class="modal-save" onclick="saveTmpl()">保存</button>
+      <button class="modal-del" id="tmplDelBtn" onclick="deleteTmpl()" style="display:none">削除</button>
+      <button class="modal-cancel" onclick="closeTmplModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="memoModalBg">
+  <div class="modal">
+    <h3 id="memoModalTitle">メモを追加</h3>
+    <label>履歴から選ぶ</label>
+    <select id="memoHistSelect" onchange="onMemoHistSelect(this)"><option value="">--選択--</option></select>
+    <label>メモ</label>
+    <input type="text" id="memoTextInput" placeholder="例: 学習25">
+    <div class="modal-btns">
+      <button class="modal-save" onclick="saveMemoModal()">保存</button>
+      <button class="modal-del" id="memoDelBtn" onclick="deleteMemoModal()" style="display:none">削除</button>
+      <button class="modal-cancel" onclick="closeMemoModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAYS=['日','月','火','水','木','金','土'];
+
+// 2025-2027年 日本の祝日
+const HOLIDAYS={
+  '2025-01-01':'元日',
+  '2025-01-13':'成人の日',
+  '2025-02-11':'建国記念の日',
+  '2025-02-23':'天皇誕生日',
+  '2025-02-24':'振替休日',
+  '2025-03-20':'春分の日',
+  '2025-04-29':'昭和の日',
+  '2025-05-03':'憲法記念日',
+  '2025-05-04':'みどりの日',
+  '2025-05-05':'こどもの日',
+  '2025-05-06':'振替休日',
+  '2025-07-21':'海の日',
+  '2025-08-11':'山の日',
+  '2025-09-15':'敬老の日',
+  '2025-09-23':'秋分の日',
+  '2025-10-13':'スポーツの日',
+  '2025-11-03':'文化の日',
+  '2025-11-23':'勤労感謝の日',
+  '2025-11-24':'振替休日',
+  '2026-01-01':'元日',
+  '2026-01-12':'成人の日',
+  '2026-02-11':'建国記念の日',
+  '2026-02-23':'天皇誕生日',
+  '2026-03-20':'春分の日',
+  '2026-04-29':'昭和の日',
+  '2026-05-03':'憲法記念日',
+  '2026-05-04':'みどりの日',
+  '2026-05-05':'こどもの日',
+  '2026-05-06':'振替休日',
+  '2026-07-20':'海の日',
+  '2026-08-11':'山の日',
+  '2026-09-21':'敬老の日',
+  '2026-09-22':'国民の休日',
+  '2026-09-23':'秋分の日',
+  '2026-10-12':'スポーツの日',
+  '2026-11-03':'文化の日',
+  '2026-11-23':'勤労感謝の日',
+  '2027-01-01':'元日',
+  '2027-01-11':'成人の日',
+  '2027-02-11':'建国記念の日',
+  '2027-02-23':'天皇誕生日',
+  '2027-03-21':'春分の日',
+  '2027-04-29':'昭和の日',
+  '2027-05-03':'憲法記念日',
+  '2027-05-04':'みどりの日',
+  '2027-05-05':'こどもの日',
+  '2027-07-19':'海の日',
+  '2027-08-11':'山の日',
+  '2027-09-20':'敬老の日',
+  '2027-09-23':'秋分の日',
+  '2027-10-11':'スポーツの日',
+  '2027-11-03':'文化の日',
+  '2027-11-23':'勤労感謝の日',
+};
+function getHoliday(y,m,d){
+  const key=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  return HOLIDAYS[key]||null;
+}
+
+let PX=2.0; const PX_MIN=0.5,PX_MAX=6.0, START_H=0, END_H=24;
+let WPX=1.0; const WPX_MIN=0.3,WPX_MAX=4.0;
+
+let plans=[],actuals=[],nextId=200;
+let learningChecks={}; // {templateId: true/false}
+let learningMemos={}; // {templateId: [memo1, memo2, ...]} 今日のメモ（複数タグ）
+let learningMemoHistory={}; // {templateId: [候補1, 候補2, ...]} 過去の候補履歴
+
+// ---- Undo履歴 ----
+const undoStack=[];
+const UNDO_LIMIT=30;
+function pushUndo(){
+  const diary=document.getElementById('diaryText')?document.getElementById('diaryText').value:'';
+  undoStack.push(JSON.stringify({plans,actuals,nextId,learningChecks,diary}));
+  if(undoStack.length>UNDO_LIMIT)undoStack.shift();
+}
+function undo(){
+  if(!undoStack.length)return;
+  const prev=JSON.parse(undoStack.pop());
+  plans=prev.plans;actuals=prev.actuals;nextId=prev.nextId;
+  learningChecks=prev.learningChecks||{};
+  const ta=document.getElementById('diaryText');
+  if(ta&&prev.diary!==undefined)ta.value=prev.diary;
+  saveData();
+  renderBlocks();updateStats();renderLearningChecks();
+}
+let modalMode='add',modalCol='plan',modalEditId=null;
+let cY,cM,cD,todayY,todayM,todayD,weekSunDate;
+let monthY,monthM; // 月次表示用
+let templates=[];
+let tmplEditId=null;
+let dragTmpl=null;
+let selectedBlock=null;
+let dragState=null;
+let mouseDownY=0;
+let mouseDownItem=null;
+let planCol=null,actualCol=null;
+
+// ---- 基本ユーティリティ ----
+function toMin(t){if(!t||!t.includes(':'))return 0;const[h,m]=t.split(':').map(Number);return h*60+(m||0);}
+function minToTime(m){m=((m%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
+function toH(m){const h=Math.floor(m/60),mn=m%60;if(h===0)return `${mn}m`;return mn?`${h}h${mn}m`:`${h}h`;}
+function dur(s,e){return Math.max(0,toMin(e)-toMin(s));}
+function toPx(t,px){return Math.max(0,(toMin(t)-START_H*60)*px);}
+function hPx(s,e,px){return Math.max(10,dur(s,e)*px);}
+function snapMin(m){return Math.round(m/15)*15;}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function mPlan(a,plist){return (plist||plans).find(p=>p.name===a.name)||null;}
+function dColor(pl,a){
+  if(!pl)return{bg:'#E1F5EE',fg:'#085041'};
+  const d=dur(a.start,a.end)-dur(pl.start,pl.end);
+  if(Math.abs(d)<=15)return{bg:'#E1F5EE',fg:'#085041'};
+  return d>0?{bg:'#FAECE7',fg:'#712B13'}:{bg:'#EAF3DE',fg:'#27500A'};
+}
+
+// ---- 日またぎ ----
+function isOvernight(s,e){
+  if(!s||!e)return false;
+  if(e==='00:00')return true; // 翌日0時ちょうども日またぎ
+  return toMin(e)<=toMin(s);
+}
+function mkDateStr(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function dateStr(){return mkDateStr(cY,cM,cD);}
+function nextDateStr(){const d=new Date(cY,cM-1,cD+1);return mkDateStr(d.getFullYear(),d.getMonth()+1,d.getDate());}
+function prevDateStr(){const d=new Date(cY,cM-1,cD-1);return mkDateStr(d.getFullYear(),d.getMonth()+1,d.getDate());}
+
+function saveCarryOver(col,item){
+  const key='yojitsu:'+nextDateStr();
+  let data={plans:[],actuals:[],nextId:200};
+  try{const r=localStorage.getItem(key);if(r)data=JSON.parse(r);}catch(e){}
+  const arr=col==='plan'?data.plans:data.actuals;
+  const carryId='carry_'+item.id;
+  const existing=arr.find(x=>x.carryId===carryId);
+  if(existing){existing.end=item.end;existing.name=item.name;}
+  else arr.push({id:data.nextId++,name:item.name,start:'00:00',end:item.end,carryId,carryFrom:dateStr()});
+  if(col==='plan')data.plans=arr;else data.actuals=arr;
+  try{localStorage.setItem(key,JSON.stringify(data));}catch(e){}
+}
+function removeCarryOver(col,itemId){
+  const key='yojitsu:'+nextDateStr();
+  let data={plans:[],actuals:[],nextId:200};
+  try{const r=localStorage.getItem(key);if(r)data=JSON.parse(r);}catch(e){}
+  const carryId='carry_'+itemId;
+  if(col==='plan')data.plans=data.plans.filter(x=>x.carryId!==carryId);
+  else data.actuals=data.actuals.filter(x=>x.carryId!==carryId);
+  try{localStorage.setItem(key,JSON.stringify(data));}catch(e){}
+}
+function getCarryFromPrev(){
+  const key='yojitsu:'+prevDateStr();
+  const result={plans:[],actuals:[]};
+  try{
+    const r=localStorage.getItem(key);
+    if(r){
+      const data=JSON.parse(r);
+      // carryIdがある＝前日の日またぎブロックのキャリーオーバー
+      data.plans.filter(p=>p.carryId).forEach(p=>result.plans.push(p));
+      data.actuals.filter(a=>a.carryId).forEach(a=>result.actuals.push(a));
+    }
+  }catch(e){}
+  return result;
+}
+
+// ---- 初期化・ナビ ----
+function initToday(){const d=new Date();todayY=d.getFullYear();todayM=d.getMonth()+1;todayD=d.getDate();}
+function isToday(){return cY===todayY&&cM===todayM&&cD===todayD;}
+function displayStr(){return `${cY}/${String(cM).padStart(2,'0')}/${String(cD).padStart(2,'0')}`;}
+function dowStr(){return DAYS[new Date(cY,cM-1,cD).getDay()];}
+function updateHeader(){
+  const disp=document.getElementById('dateDisplay');
+  disp.textContent=displayStr();
+  disp.className='date-display'+(isToday()?' is-today':'');
+  const holiday=getHoliday(cY,cM,cD);
+  const dow=new Date(cY,cM-1,cD).getDay();
+  const isRed=dow===0||!!holiday;
+  const label=document.getElementById('dayLabel');
+  label.textContent='（'+dowStr()+'）'+(holiday?'　'+holiday:'');
+  label.style.color=isRed?'#993C1D':'#666';
+  document.getElementById('btnToday').style.opacity=isToday()?'0.35':'1';
+  document.getElementById('btnToday').style.pointerEvents=isToday()?'none':'auto';
+}
+function changeDate(n){
+  const d=new Date(cY,cM-1,cD+n);
+  cY=d.getFullYear();cM=d.getMonth()+1;cD=d.getDate();
+  render._initialized=false;
+  updateHeader();loadData();render();renderLearningChecks();
+}
+function goToday(){
+  cY=todayY;cM=todayM;cD=todayD;
+  render._initialized=false;
+  updateHeader();loadData();render();renderLearningChecks();
+}
+function showDaily(){
+  document.getElementById('pageDaily').classList.add('active');
+  document.getElementById('pageWeek').classList.remove('active');
+  document.getElementById('pageMonth').classList.remove('active');
+  document.getElementById('pageDashboard').classList.remove('active');
+}
+function showWeek(){
+  document.getElementById('pageDaily').classList.remove('active');
+  document.getElementById('pageWeek').classList.add('active');
+  document.getElementById('pageMonth').classList.remove('active');
+  document.getElementById('pageDashboard').classList.remove('active');
+  renderWeek();
+}
+let dashMode='week';
+function showDashboard(){
+  saveData();
+  document.getElementById('pageDaily').classList.remove('active');
+  document.getElementById('pageWeek').classList.remove('active');
+  document.getElementById('pageMonth').classList.remove('active');
+  document.getElementById('pageDashboard').classList.add('active');
+  renderDashboard();
+}
+function setDashMode(mode){
+  dashMode=mode;
+  renderDashboard();
+}
+function saveAndWeek(){
+  saveData();
+  const d=new Date(cY,cM-1,cD);d.setDate(d.getDate()-d.getDay());
+  weekSunDate={y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()};
+  showWeek();
+}
+
+// ---- データ保存/読込 ----
+function loadData(y,m,d){
+  const key='yojitsu:'+(y?mkDateStr(y,m,d):dateStr());
+  try{
+    const raw=localStorage.getItem(key);
+    if(raw){
+      const data=JSON.parse(raw);
+      data.plans=(data.plans||[]).filter(p=>!p.carryId);
+      data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
+      if(!y){
+        plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;
+        learningChecks=data.learningChecks||{};
+        learningMemos=data.learningMemos||{};
+        // 旧データを新形式（1個の文字列）へ変換
+        Object.keys(learningMemos).forEach(k=>{
+          let v=learningMemos[k];
+          if(Array.isArray(v)){
+            // 旧配列形式 → 最初の要素を採用
+            learningMemos[k]=v.length?String(v[0]):'';
+          }else if(typeof v==='string'&&v.includes('\n')){
+            // 複数行 → 最初の行を採用
+            const lines=v.split('\n').map(s=>s.trim()).filter(s=>s);
+            learningMemos[k]=lines.length?lines[0]:'';
+          }
+        });
+        const ta=document.getElementById('diaryText');
+        if(ta)ta.value=data.diary||'';
+        setDiaryStatus('');
+      }
+      return data;
+    }else{
+      if(!y){
+        plans=[];actuals=[];nextId=200;
+        learningChecks={};
+        learningMemos={};
+        const ta=document.getElementById('diaryText');
+        if(ta)ta.value='';
+        setDiaryStatus('');
+      }
+      return null;
+    }
+  }catch(e){if(!y){plans=[];actuals=[];nextId=200;}return null;}
+}
+function saveData(){
+  const diary=document.getElementById('diaryText')?document.getElementById('diaryText').value:'';
+  try{localStorage.setItem('yojitsu:'+dateStr(),JSON.stringify({plans,actuals,nextId,diary,learningChecks,learningMemos}));}
+  catch(e){}
+}
+
+function exportFilename(){
+  // ★ダウンロードファイル名の設定（変更する場合はここだけ編集）
+  const now=new Date();
+  const mm=String(now.getMonth()+1).padStart(2,'0');
+  const dd=String(now.getDate()).padStart(2,'0');
+  const hh=String(now.getHours()).padStart(2,'0');
+  const mi=String(now.getMinutes()).padStart(2,'0');
+  return '予実管理表'+mm+dd+' '+hh+mi+'.json';
+}
+
+function exportData(){
+  // 全yojitsu:日付キーを収集
+  const days={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('yojitsu:')&&k!=='yojitsu:templates'){
+      try{days[k.replace('yojitsu:','')]=JSON.parse(localStorage.getItem(k));}catch(e){}
+    }
+  }
+  const data={
+    version:1,
+    exportedAt:new Date().toISOString(),
+    templates,
+    days
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const reader=new FileReader();
+  reader.onload=function(){
+    const a=document.createElement('a');
+    a.href=reader.result;
+    a.download=exportFilename();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+  reader.readAsDataURL(blob);
+}
+
+function importData(){
+  document.getElementById('importFile').value='';
+  document.getElementById('importFile').click();
+}
+
+function onImportFile(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.version||!data.days){alert('ファイルの形式が正しくありません');return;}
+      if(!confirm('インポートすると現在のデータに上書きされます。続けますか？\n（同じ日付のデータは上書き、それ以外の日付は保持されます）'))return;
+      // テンプレートを上書き
+      if(data.templates){
+        templates=data.templates;
+        saveTemplates();
+        renderTemplates();
+      }
+      // 日付データを上書き（YYYYMMDDの形式の日付キーのみ処理）
+      const datePattern=/^\d{4}-\d{2}-\d{2}$/;
+      const dayEntries=Object.entries(data.days).filter(([date])=>datePattern.test(date));
+      dayEntries.forEach(([date,dayData])=>{
+        // localStorageに保存
+        localStorage.setItem('yojitsu:'+date,JSON.stringify(dayData));
+        // Firebaseに保存
+        if(currentUid){
+          db.ref('users/'+currentUid+'/days/'+date).set(dayData);
+        }
+      });
+      // 今日のデータを再読み込み
+      loadData();
+      renderBlocks();updateStats();renderLearningChecks();
+      alert('インポートが完了しました（'+dayEntries.length+'日分）');
+    }catch(err){
+      alert('読み込みに失敗しました：'+err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ---- 学習チェック ----
+function getLearningItems(){
+  return templates.filter(t=>(t.category||'')==='学習');
+}
+function getActualMinutesForName(name){
+  // actualsの中でnameが一致するブロックの合計時間（分）を返す
+  return actuals.filter(b=>(b.name||'').trim()===name.trim())
+    .reduce((sum,b)=>{
+      const d=toMin(b.end)-toMin(b.start);
+      return sum+(d>0?d:0);
+    },0);
+}
+function fmtMin(min){
+  if(min<=0)return '';
+  const h=Math.floor(min/60),m=min%60;
+  return h>0?(m>0?`${h}h${m}m`:`${h}h`):`${m}m`;
+}
+function renderLearningChecks(){
+  const items=getLearningItems();
+  const area=document.getElementById('learningCheckArea');
+  const list=document.getElementById('learningCheckList');
+  const prog=document.getElementById('learningProgress');
+  if(!area||!list)return;
+  if(!items.length){area.style.display='none';return;}
+  area.style.display='block';
+
+  // 実績との自動マッチング
+  let totalActualMin=0;
+  const autoChecked={};
+  items.forEach(t=>{
+    const min=getActualMinutesForName(t.name);
+    if(min>0){autoChecked[t.id]=min;totalActualMin+=min;}
+  });
+
+  // done数: 自動チェック OR 手動チェック
+  const done=items.filter(t=>autoChecked[t.id]||learningChecks[t.id]).length;
+  prog.textContent=`${done}/${items.length}`;
+
+  list.innerHTML=items.map(t=>{
+    const isAuto=!!autoChecked[t.id];
+    const isManual=!!learningChecks[t.id];
+    const checked=isAuto||isManual;
+    const min=autoChecked[t.id]||0;
+    const timeLabel=min>0?`<span style="font-size:11px;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:1px 6px;margin-left:4px">${fmtMin(min)}</span>`:'';
+    // メモは1個だけ（モーダルで編集）
+    const memoVal=(learningMemos[t.id]||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const hasMemo=!!memoVal;
+    const bg=checked?'#E6F1FB':'#fff';
+    const borderColor=checked?'#B5D4F4':'#ddd';
+    return `<div style="background:${bg};border:0.5px solid ${borderColor};border-radius:8px;overflow:visible;min-width:160px;flex-shrink:0">
+      <div style="padding:6px 10px;display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" ${checked?'checked':''} ${isAuto?'disabled':''}
+          onchange="toggleLearningCheck(${t.id},this.checked)"
+          onclick="event.stopPropagation()"
+          style="width:14px;height:14px;cursor:${isAuto?'default':'pointer'};accent-color:#3C3489;flex-shrink:0">
+        <span style="font-size:12px;color:${checked?'#0C447C':'#1a1a1a'};font-weight:${checked?'500':'400'};cursor:${isAuto?'default':'pointer'}" onclick="${isAuto?'':'toggleLearningCheck('+t.id+','+!checked+')'}">${t.name}</span>
+        ${timeLabel}
+      </div>
+      <div style="padding:0 10px 8px;">
+        <div onclick="openMemoModal(${t.id})"
+          style="width:100%;font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:5px 8px;background:#f9f9f9;cursor:pointer;min-height:26px;color:${hasMemo?'#333':'#999'};white-space:pre-wrap;word-break:break-word;line-height:1.5">${hasMemo?memoVal:'＋ メモを追加...'}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 合計学習時間を項目別内訳付きで表示
+  let totalEl=document.getElementById('learningTotalTime');
+  if(!totalEl){
+    totalEl=document.createElement('span');
+    totalEl.id='learningTotalTime';
+    totalEl.style.cssText='font-size:11px;display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;margin-left:8px';
+    prog.parentNode.appendChild(totalEl);
+  }
+  if(totalActualMin>0){
+    const itemBadges=items.filter(t=>autoChecked[t.id]>0)
+      .map(t=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#f5f5f2;border:0.5px solid #ddd;border-radius:4px;padding:1px 6px;font-size:11px">
+        <span style="color:#666">${t.name}</span>
+        <span style="color:#3C3489;font-weight:500">${fmtMin(autoChecked[t.id])}</span>
+      </span>`).join('');
+    totalEl.innerHTML=
+      `<span style="color:#085041;background:#E1F5EE;border-radius:4px;padding:2px 8px;font-weight:500">合計 ${fmtMin(totalActualMin)}</span>`+
+      `<span style="display:inline-flex;flex-wrap:wrap;gap:4px">${itemBadges}</span>`;
+    totalEl.style.display='inline-flex';
+  }else{
+    totalEl.innerHTML='';
+    totalEl.style.display='none';
+  }
+}
+function toggleLearningCheck(id,checked){
+  pushUndo();
+  learningChecks[id]=checked;
+  saveData();
+  renderLearningChecks();
+}
+// ---- 学習メモ（モーダル方式）----
+let memoModalTid=null; // 編集中のテンプレID
+function loadMemoHistory(){
+  try{const r=localStorage.getItem('yojitsu:memoHistory');if(r)learningMemoHistory=JSON.parse(r);}catch(e){}
+}
+function saveMemoHistory(){
+  try{localStorage.setItem('yojitsu:memoHistory',JSON.stringify(learningMemoHistory));}catch(e){}
+}
+function openMemoModal(tid){
+  memoModalTid=tid;
+  const cur=learningMemos[tid]||'';
+  // 既存メモがあれば「編集モード」、なければ「新規追加」
+  const title=document.getElementById('memoModalTitle');
+  const delBtn=document.getElementById('memoDelBtn');
+  if(title)title.textContent=cur?'メモを編集':'メモを追加';
+  if(delBtn)delBtn.style.display=cur?'inline-block':'none';
+  // 履歴ドロップダウンを構築（テンプレ別）
+  const sel=document.getElementById('memoHistSelect');
+  const hist=learningMemoHistory[tid]||[];
+  if(sel){
+    sel.innerHTML='<option value="">--選択--</option>'+hist.map(h=>{
+      const esc=h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      return `<option value="${esc}">${esc}</option>`;
+    }).join('');
+    sel.value='';
+  }
+  // メモ入力欄に現在値をセット
+  const inp=document.getElementById('memoTextInput');
+  if(inp){inp.value=cur;}
+  document.getElementById('memoModalBg').style.display='flex';
+  setTimeout(()=>{if(inp)inp.focus();},50);
+}
+function closeMemoModal(){
+  document.getElementById('memoModalBg').style.display='none';
+  memoModalTid=null;
+}
+function onMemoHistSelect(sel){
+  // 履歴を選んだらメモ入力欄に反映（編集可）
+  const v=sel.value;
+  if(v){
+    const inp=document.getElementById('memoTextInput');
+    if(inp)inp.value=v;
+  }
+}
+function saveMemoModal(){
+  if(memoModalTid===null)return;
+  const inp=document.getElementById('memoTextInput');
+  const text=(inp?inp.value:'').trim();
+  if(!text){alert('メモを入力してください');return;}
+  pushUndo();
+  learningMemos[memoModalTid]=text;
+  // 履歴に追加（最近使った順）
+  if(!learningMemoHistory[memoModalTid])learningMemoHistory[memoModalTid]=[];
+  learningMemoHistory[memoModalTid]=learningMemoHistory[memoModalTid].filter(h=>h!==text);
+  learningMemoHistory[memoModalTid].unshift(text);
+  if(learningMemoHistory[memoModalTid].length>20)learningMemoHistory[memoModalTid]=learningMemoHistory[memoModalTid].slice(0,20);
+  saveMemoHistory();
+  saveData();
+  closeMemoModal();
+  renderLearningChecks();
+}
+function deleteMemoModal(){
+  if(memoModalTid===null)return;
+  if(!confirm('このメモを削除しますか？'))return;
+  pushUndo();
+  delete learningMemos[memoModalTid];
+  saveData();
+  closeMemoModal();
+  renderLearningChecks();
+}
+
+
+// ---- 日記 ----
+let diaryTimer=null;
+// ---- 学習チェック・日記のトグル ----
+let learningCheckOpen=true;
+let diaryOpen=true;
+
+function toggleLearningCheckArea(){
+  learningCheckOpen=!learningCheckOpen;
+  const list=document.getElementById('learningCheckList');
+  const btn=document.getElementById('learningCheckToggleBtn');
+  if(list){list.style.display=learningCheckOpen?'flex':'none';}
+  if(btn){btn.textContent=learningCheckOpen?'▲ 閉じる':'▼ 開く';}
+}
+function toggleDiaryArea(){
+  diaryOpen=!diaryOpen;
+  const body=document.getElementById('diaryBody');
+  const btn=document.getElementById('diaryToggleBtn');
+  if(body){body.style.display=diaryOpen?'block':'none';}
+  if(btn){btn.textContent=diaryOpen?'▲ 閉じる':'▼ 開く';}
+}
+
+function onDiaryInput(){
+  setDiaryStatus('入力中...');
+  clearTimeout(diaryTimer);
+  diaryTimer=setTimeout(()=>{
+    pushUndo();
+    saveData();
+    setDiaryStatus('✅ 保存しました');
+    setTimeout(()=>setDiaryStatus(''),3000);
+  },3000);
+}
+function setDiaryStatus(msg){
+  const el=document.getElementById('diaryStatus');
+  if(el){
+    el.textContent=msg;
+    el.style.color=msg.includes('✅')?'#1D9E75':'#aaa';
+  }
+}
+function resetToday(){
+  if(!confirm('今日のデータをすべてリセットしますか？'))return;
+  localStorage.removeItem('yojitsu:'+dateStr());
+  plans=[];actuals=[];nextId=200;learningChecks={};
+  renderBlocks();updateStats();renderLearningChecks();
+}
+window.addEventListener('beforeunload',e=>{
+  saveData();
+});
+function loadTemplates(){
+  try{const raw=localStorage.getItem('yojitsu:templates');if(raw)templates=JSON.parse(raw);}catch(e){}
+  if(!templates.length){
+    templates=[
+      {id:1,name:'通勤',dur:60},{id:2,name:'メールチェック',dur:30},
+      {id:3,name:'定例会議',dur:60},{id:4,name:'ランチ',dur:60},{id:5,name:'報告書作成',dur:60},
+    ];
+  }
+}
+function saveTemplates_localStorage(){try{localStorage.setItem('yojitsu:templates',JSON.stringify(templates));}catch(e){}}
+
+// ---- テンプレートUI ----
+let sortDragId=null; // 並び替え用
+
+function renderTemplates(){
+  const list=document.getElementById('tmplList');
+  // カテゴリ別グループ化
+  const cats={};
+  templates.forEach(t=>{
+    const c=t.category||'';
+    if(!cats[c])cats[c]=[];
+    cats[c].push(t);
+  });
+  let html='';
+  // カテゴリなし
+  if(cats['']){
+    cats[''].forEach(t=>{html+=tmplItemHTML(t);});
+  }
+  // カテゴリあり
+  Object.keys(cats).filter(k=>k).forEach(cat=>{
+    const open=!collapsedCats.has(cat);
+    html+=`<div class="tmpl-cat-header"
+      draggable="true"
+      data-cat="${cat}"
+      ondragstart="onCatDragStart(event,this)"
+      ondragover="onCatDragOver(event,this)"
+      ondrop="onCatDrop(event,this)"
+      ondragend="onCatDragEnd(event)"
+      onclick="toggleCat(this.dataset.cat)">
+      <span class="tmpl-cat-arrow">${open?'▾':'▸'}</span>
+      <span class="tmpl-cat-name">${cat}</span>
+    </div>`;;
+    if(open){
+      cats[cat].forEach(t=>{html+=tmplItemHTML(t);});
+    }
+  });
+  html+=`<button class="tmpl-add-btn" onclick="openTmplEdit(null)">＋ テンプレ追加</button>`;
+  list.innerHTML=html;
+}
+function tmplItemHTML(t){
+  return `<div class="tmpl-item" draggable="true"
+    data-tid="${t.id}"
+    data-cat="${t.category||''}"
+    ondragstart="onTmplDragStart(event,${t.id})"
+    ondragend="onTmplDragEnd(event)"
+    ondragover="onTmplSortOver(event,${t.id})"
+    ondrop="onTmplSortDrop(event,${t.id})"
+    ondblclick="openTmplEdit(${t.id})">
+    <div class="tmpl-item-name">${t.name}</div>
+    <div class="tmpl-item-dur">${toH(t.dur)}</div>
+  </div>`;
+}
+const collapsedCats=new Set();
+function toggleCat(cat){
+  if(collapsedCats.has(cat))collapsedCats.delete(cat);
+  else collapsedCats.add(cat);
+  renderTemplates();
+}
+
+function onTmplSortOver(e,id){
+  if(!sortDragId||sortDragId===id)return;
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelectorAll('.tmpl-item').forEach(el=>el.style.borderColor='');
+  const el=document.querySelector('.tmpl-item[data-tid="'+id+'"]');
+  if(el) el.style.borderColor='#378ADD';
+}
+
+function onTmplSortDrop(e,toId){
+  e.stopPropagation();e.preventDefault();
+  document.querySelectorAll('.tmpl-item').forEach(el=>{el.style.borderColor='';el.style.borderTop='';});
+  if(catDragName!==null){catDragName=null;return;} // カテゴリD&D中は無視
+  const fromId=sortDragId;
+  sortDragId=null;
+  dragTmpl=null;
+  if(!fromId||fromId===toId)return;
+  const fromIdx=templates.findIndex(x=>x.id===fromId);
+  const toEl=document.querySelector('.tmpl-item[data-tid="'+toId+'"]');
+  const toCat=toEl?toEl.dataset.cat:'';
+  const toIdx=templates.findIndex(x=>x.id===toId);
+  if(fromIdx<0||toIdx<0)return;
+  const[moved]=templates.splice(fromIdx,1);
+  moved.category=toCat; // 移動先のカテゴリに変更
+  templates.splice(toIdx,0,moved);
+  saveTemplates();
+  renderTemplates();
+  renderLearningChecks();
+}
+let catDragName=null;
+function onCatDragStart(e,el){
+  catDragName=el.dataset.cat;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',catDragName);
+  el.style.opacity='0.4';
+}
+function onCatDragOver(e,el){
+  if(catDragName===null||catDragName===el.dataset.cat)return;
+  e.preventDefault();e.stopPropagation();
+  document.querySelectorAll('.tmpl-cat-header').forEach(h=>h.style.borderTop='');
+  el.style.borderTop='2px solid #378ADD';
+}
+function onCatDrop(e,el){
+  e.preventDefault();e.stopPropagation();
+  document.querySelectorAll('.tmpl-cat-header').forEach(h=>h.style.borderTop='');
+  const fromCat=catDragName;
+  const toCat=el.dataset.cat;
+  catDragName=null;
+  if(!fromCat||fromCat===toCat)return;
+  // fromCatのアイテムをtoCatの直前に移動
+  const fromItems=templates.filter(t=>(t.category||'')===fromCat);
+  const toFirstIdx=templates.findIndex(t=>(t.category||'')===toCat);
+  const rest=templates.filter(t=>(t.category||'')!==fromCat);
+  const insertIdx=rest.findIndex(t=>(t.category||'')===toCat);
+  rest.splice(insertIdx<0?rest.length:insertIdx,0,...fromItems);
+  templates.splice(0,templates.length,...rest);
+  saveTemplates();renderTemplates();renderLearningChecks();
+}
+function onCatDragEnd(e){
+  catDragName=null;
+  document.querySelectorAll('.tmpl-cat-header').forEach(h=>{h.style.opacity='';h.style.borderTop='';});
+}
+function openTmplEdit(id){
+  tmplEditId=id;
+  // カテゴリセレクトを更新
+  const cats=getCategories();
+  const sel=document.getElementById('tmCatSelect');
+  sel.innerHTML=`<option value="">（なし）</option>`+cats.map(c=>`<option value="${c}">${c}</option>`).join('')+`<option value="__new__">＋ 新しいカテゴリ</option>`;
+  document.getElementById('tmCatNew').style.display='none';
+  if(id){
+    const t=templates.find(x=>x.id===id);
+    document.getElementById('tmplModalTitle').textContent='テンプレートを編集';
+    document.getElementById('tmName').value=t.name;
+    document.getElementById('tmDur').value=t.dur;
+    sel.value=t.category||'';
+    document.getElementById('tmplDelBtn').style.display='block';
+  }else{
+    document.getElementById('tmplModalTitle').textContent='テンプレートを追加';
+    document.getElementById('tmName').value='';document.getElementById('tmDur').value='';
+    sel.value='';
+    document.getElementById('tmplDelBtn').style.display='none';
+  }
+  document.getElementById('tmplModalBg').style.display='flex';
+  setTimeout(()=>document.getElementById('tmName').focus(),50);
+}
+function closeTmplModal(){document.getElementById('tmplModalBg').style.display='none';}
+function saveTmpl(){
+  const name=document.getElementById('tmName').value.trim();
+  const d=parseInt(document.getElementById('tmDur').value);
+  if(!name||!d||d<1){alert('名前と時間（分）を入力してください');return;}
+  const sel=document.getElementById('tmCatSelect').value;
+  const newCat=document.getElementById('tmCatNew').value.trim();
+  const category=sel==='__new__'?newCat:sel;
+  if(tmplEditId){const t=templates.find(x=>x.id===tmplEditId);if(t){t.name=name;t.dur=d;t.category=category;}}
+  else templates.push({id:Date.now(),name,dur:d,category});
+  saveTemplates();renderTemplates();renderLearningChecks();closeTmplModal();
+}
+function onCatSelectChange(sel){
+  document.getElementById('tmCatNew').style.display=sel.value==='__new__'?'block':'none';
+}
+function getCategories(){
+  const cats=[...new Set(templates.map(t=>t.category||'').filter(c=>c))];
+  return cats;
+}
+function deleteTmpl(){
+  templates=templates.filter(x=>x.id!==tmplEditId);
+  saveTemplates();renderTemplates();renderLearningChecks();closeTmplModal();
+}
+document.getElementById('tmplModalBg').addEventListener('click',function(e){if(e.target===this)closeTmplModal();});
+document.getElementById('tmplModalBg').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveTmpl();}
+});
+
+document.getElementById('memoModalBg').addEventListener('click',function(e){if(e.target===this)closeMemoModal();});
+document.getElementById('memoModalBg').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemoModal();}
+  if(e.key==='Escape'){closeMemoModal();}
+});
+
+// ---- D&D（テンプレ→タイムライン） ----
+function onTmplDragStart(e,id){
+  sortDragId=id;
+  dragTmpl=templates.find(x=>x.id===id);
+  e.dataTransfer.effectAllowed='copyMove';
+  e.dataTransfer.setData('text/plain',String(id));
+  e.target.classList.add('dragging');
+}
+function onTmplDragEnd(e){
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.tmpl-item').forEach(el=>el.style.borderColor='');
+  sortDragId=null;
+  // dragTmplはhandleDropでリセット。タイムラインにドロップされなかった場合はここでリセット
+  dragTmpl=null;
+}
+function getDropInfo(e){
+  const tlScroll=document.getElementById('tlScroll');
+  const tlGrid=document.getElementById('tlGrid');
+  const gridRect=tlGrid.getBoundingClientRect();
+  // グリッド内のY座標（スクロール込み）
+  const relY=(e.clientY - gridRect.top) + tlScroll.scrollTop;
+  const dropMin=START_H*60+Math.round(relY/PX/15)*15;
+  // カラム判定
+  const relX=e.clientX-gridRect.left-44;
+  const col=relX>((gridRect.width-44)/2)?'actual':'plan';
+  return{dropMin,col};
+}
+function onDragOver(e){if(!dragTmpl)return;e.preventDefault();e.dataTransfer.dropEffect='copy';}
+function onDragLeave(e){}
+function handleDrop(e){
+  e.stopPropagation();
+  if(!dragTmpl)return;
+  pushUndo();
+  const tlScroll=document.getElementById('tlScroll');
+  const scrollRect=tlScroll.getBoundingClientRect();
+  // tlScrollのtop基準にする（tlGridはスクロールで位置が変わるので使わない）
+  const relY=(e.clientY - scrollRect.top) + tlScroll.scrollTop;
+  const dropMin=START_H*60+Math.floor(relY/PX/15)*15;
+  // カラム判定はtlGridのX位置で（幅は変わらないので問題なし）
+  const gridRect=document.getElementById('tlGrid').getBoundingClientRect();
+  const relX=e.clientX - gridRect.left - 44;
+  const col=relX>((gridRect.width-44)/2)?'actual':'plan';
+  const startMin=Math.max(START_H*60,Math.min(dropMin,END_H*60-1));
+  const endMin=startMin+dragTmpl.dur;
+  const arr=col==='plan'?plans:actuals;
+  if(endMin>=END_H*60){
+    // 日またぎ：翌日の終了時刻を計算
+    const nextEnd=endMin===END_H*60?'00:00':minToTime(endMin-END_H*60);
+    const item={id:nextId++,name:dragTmpl.name,start:minToTime(startMin),end:nextEnd};
+    arr.push(item);saveCarryOver(col,item);
+  }else{
+    arr.push({id:nextId++,name:dragTmpl.name,start:minToTime(startMin),end:minToTime(endMin)});
+  }
+  dragTmpl=null;
+  saveData();
+  render();
+}
+function onDrop(e){e.preventDefault();e.stopPropagation();handleDrop(e);}
+
+// ---- 選択・キーボード削除 ----
+function selectBlock(col,id){
+  document.querySelectorAll('[data-block]').forEach(el=>el.style.outline='');
+  selectedBlock={col,id};
+  const el=document.querySelector(`[data-block][data-col="${col}"][data-id="${id}"]`);
+  if(el)el.style.outline='2px solid #378ADD';
+}
+function clearSelect(){
+  document.querySelectorAll('[data-block]').forEach(el=>el.style.outline='');
+  selectedBlock=null;
+}
+document.addEventListener('keydown',e=>{
+  const modalOpen=document.getElementById('modalBg').style.display==='flex';
+  const tmplOpen=document.getElementById('tmplModalBg').style.display==='flex';
+  const memoOpen=document.getElementById('memoModalBg').style.display==='flex';
+  if(modalOpen){if(e.key==='Escape')closeModal();return;}
+  if(tmplOpen){if(e.key==='Escape')closeTmplModal();return;}
+  if(memoOpen){if(e.key==='Escape')closeMemoModal();return;}
+  if(document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA')return;
+  // Ctrl+Z: Undo
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){
+    e.preventDefault();
+    undo();
+    return;
+  }
+  if(selectedBlock&&(e.key==='Delete'||e.key==='Backspace')){
+    e.preventDefault();
+    const{col,id}=selectedBlock;
+    const arr=col==='plan'?plans:actuals;
+    const item=arr.find(x=>x.id===id);
+    pushUndo();
+    if(item&&isOvernight(item.start,item.end))removeCarryOver(col,item.id);
+    if(col==='plan')plans=plans.filter(x=>x.id!==id);
+    else actuals=actuals.filter(x=>x.id!==id);
+    clearSelect();
+    saveData();
+    renderBlocks();updateStats();renderLearningChecks();
+  }
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('[data-block]')&&!e.target.closest('.modal'))clearSelect();
+});
+
+// ---- リサイズ・移動 ----
+let mouseDownGridRect=null;
+let mouseDownBlockOffset=0; // ブロック内のクリック位置（上端からのpx）
+
+function startInteract(e,mode,col,id){
+  if(e.button!==0)return;
+  e.stopPropagation();e.preventDefault();
+  const item=(col==='plan'?plans:actuals).find(x=>x.id===id);
+  if(!item)return;
+  mouseDownY=e.clientY;
+  mouseDownItem={col,id,mode};
+  // mousedown時点でgridのrectを記録
+  const grid=document.getElementById('tlGrid');
+  mouseDownGridRect=grid?grid.getBoundingClientRect():null;
+  // ブロック内のクリック位置オフセットを記録（moveモードのみ）
+  if(mode==='move'){
+    const blockTop=toPx(item.start,PX);
+    const tlScroll=document.getElementById('tlScroll');
+    const scrollRect=tlScroll.getBoundingClientRect();
+    const absBlockTop=scrollRect.top+blockTop-tlScroll.scrollTop;
+    mouseDownBlockOffset=e.clientY-absBlockTop;
+  }else{
+    mouseDownBlockOffset=0;
+  }
+  dragState={mode,col,id,startY:e.clientY,origStartMin:toMin(item.start),origEndMin:toMin(item.end)};
+  document.body.style.userSelect='none';
+  document.body.style.cursor=mode==='move'?'grabbing':'ns-resize';
+}
+document.addEventListener('mousemove',e=>{
+  // 週スケール処理
+  if(weekScaleState){
+    const dy=e.clientY-weekScaleState.startY;
+    const factor=Math.pow(2,dy/150);
+    // 最小値：スクロールエリアに0〜24時が収まるpx
+    const scrollArea=document.getElementById('weekScrollArea');
+    const areaH=scrollArea?scrollArea.getBoundingClientRect().height:400;
+    const wMin=Math.max(WPX_MIN, areaH*0.88/(END_H-START_H)/60);
+    WPX=Math.max(wMin,Math.min(WPX_MAX,weekScaleState.startWPX*factor));
+    reRenderWeekScale();
+    // インジケーター表示
+    let ind=document.getElementById('weekScaleInd');
+    if(!ind){
+      ind=document.createElement('div');
+      ind.id='weekScaleInd';
+      ind.style.cssText='position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;font-size:11px;padding:4px 12px;border-radius:20px;z-index:100;pointer-events:none';
+      document.body.appendChild(ind);
+    }
+    ind.textContent=`週表示 縮尺: ${WPX.toFixed(2)}px/分`;
+    ind.style.display='block';
+    return;
+  }
+  // scaleState処理（dragStateとは独立して動く）
+  if(scaleState){
+    const dy=e.clientY-scaleState.startY;
+    const factor=Math.pow(2,dy/150);
+    // 最小値：CSS変数--tl-hから実際の高さを取得
+    const tlScroll=document.getElementById('tlScroll');
+    const cssH=getComputedStyle(document.documentElement).getPropertyValue('--tl-h');
+    const tlH=cssH?parseFloat(cssH):tlScroll?tlScroll.offsetHeight:400;
+    const pMin=Math.max(PX_MIN, tlH/(END_H-START_H)/60);
+    PX=Math.max(pMin,Math.min(PX_MAX,scaleState.startPX*factor));
+    reRenderScale();
+    const newScrollTop=scaleState.anchorMin*PX-scaleState.anchorScreenY;
+    tlScroll.scrollTop=Math.max(0,newScrollTop);
+    showScaleIndicator(PX);
+    return; // scaleState中はブロック操作しない
+  }
+  if(!dragState)return;
+  const{mode,col,id,startY,origStartMin,origEndMin}=dragState;
+  const dMin=snapMin((e.clientY-startY)/PX);
+  const arr=col==='plan'?plans:actuals;
+  const item=arr.find(x=>x.id===id);
+  if(!item)return;
+  const MIN=START_H*60,MAX=END_H*60;
+  // ドラッグ中の表示用時刻（itemは書き換えない）
+  let dispStart=item.start,dispEnd=item.end;
+  if(mode==='move'){
+    const len=origEndMin-origStartMin;
+    const s=clamp(origStartMin+dMin,MIN,MAX-len);
+    dispStart=minToTime(s);dispEnd=minToTime(s+len);
+  }else if(mode==='resizeBot'){
+    dispEnd=minToTime(clamp(origEndMin+dMin,origStartMin+15,MAX));
+  }else if(mode==='resizeTop'){
+    dispStart=minToTime(clamp(origStartMin+dMin,MIN,origEndMin-15));
+  }
+  // item本体も更新（mouseup時に保存するため）
+  item.start=dispStart;item.end=dispEnd;
+  const el=document.querySelector(`[data-block][data-col="${col}"][data-id="${id}"]`);
+  if(el){
+    el.style.top=toPx(dispStart,PX)+'px';
+    el.style.height=hPx(dispStart,dispEnd,PX)+'px';
+    // バッジのみ更新（ブロック内テキストは触らない）
+    let badge=el.querySelector('.resize-badge');
+    if(!badge){
+      badge=document.createElement('div');
+      badge.className='resize-badge';
+      badge.style.cssText='position:absolute;top:2px;right:4px;font-size:10px;font-weight:500;color:#fff;padding:1px 6px;border-radius:3px;pointer-events:none;z-index:100;white-space:nowrap;line-height:1.6;';
+      el.appendChild(badge);
+    }
+    const newDur=toMin(dispEnd)-toMin(dispStart);
+    const origDur=origEndMin-origStartMin;
+    badge.style.background=newDur>=origDur?'#0C447C':'#e53935';
+    badge.textContent=`${dispStart} 〜 ${dispEnd}`;
+  }
+  updateStats();
+});
+document.addEventListener('mouseup',e=>{
+  // 週スケール終了
+  if(weekScaleState){
+    weekScaleState=null;
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+    const ind=document.getElementById('weekScaleInd');
+    if(ind)ind.style.display='none';
+    try{localStorage.setItem('yojitsu:wpx',WPX.toFixed(2));}catch(e){}
+    return;
+  }
+  // scaleState処理（リサイザーとは独立）
+  if(scaleState){
+    scaleState=null;
+    if(!window._tlVDragging&&!window._sbDragging){
+      document.body.style.cursor='';
+      document.body.style.userSelect='';
+    }
+    try{localStorage.setItem('yojitsu:px',PX.toFixed(2));}catch(e){}
+    hideScaleIndicator();
+    return;
+  }
+  if(!dragState)return;
+  const moved=Math.abs(e.clientY-mouseDownY);
+  const mi=mouseDownItem;
+  const ds=dragState;
+  dragState=null;mouseDownItem=null;
+  document.body.style.userSelect='';document.body.style.cursor='';
+
+  // リサイズバッジを削除
+  document.querySelectorAll('.resize-badge').forEach(b=>b.remove());
+
+  // X座標で実績列かどうか判定（mousedown時点のrectを使用）
+  const gridRect=mouseDownGridRect;
+  mouseDownGridRect=null;
+  let droppedOnActual=false;
+  if(gridRect){
+    const relX=e.clientX-gridRect.left-44;
+    droppedOnActual=relX>((gridRect.width-44)/2);
+  }
+
+  if(moved<5&&mi&&mi.mode==='move'){
+    // 実績ブロックのクリック → 必ず編集ダイアログ
+    if(mi.col==='actual'){
+      selectBlock(mi.col,mi.id);
+      openEdit(mi.col,mi.id);
+      return;
+    }
+    // 予定ブロックのクリック → 予定列内のみダイアログ
+    if(!droppedOnActual){
+      selectBlock(mi.col,mi.id);
+      openEdit(mi.col,mi.id);
+      return;
+    }
+    // 予定ブロックを実績列へクリック（移動量5px未満）→ 何もしない
+    return;
+  }
+
+  if(ds&&ds.col==='plan'&&ds.mode==='move'){
+    const item=plans.find(x=>x.id===ds.id);
+    if(item){
+      if(droppedOnActual){
+        // 予定を元の位置に戻す
+        item.start=minToTime(ds.origStartMin);
+        item.end=minToTime(ds.origEndMin);
+        // 実績列にドロップ位置でコピー（ブロック内クリック位置を補正）
+        const dur_=ds.origEndMin-ds.origStartMin;
+        const tlScroll=document.getElementById('tlScroll');
+        const scrollRect=tlScroll.getBoundingClientRect();
+        const relY=(e.clientY-mouseDownBlockOffset-scrollRect.top)+tlScroll.scrollTop;
+        const dropMin=clamp(START_H*60+Math.round(relY/PX/15)*15,START_H*60,END_H*60-Math.max(dur_,15));
+        const newStart=minToTime(dropMin),newEnd=minToTime(dropMin+dur_);
+        const overlaps=checkActualOverlap(newStart,newEnd);
+        if(overlaps.length>0){alertOverlap(overlaps,'actual');renderBlocks();return;}
+        actuals.push({id:nextId++,name:item.name,start:newStart,end:newEnd});
+      } else {
+        // 予定列内での移動 → 重複チェック
+        const overlaps=checkPlanOverlap(item.start,item.end,item.id);
+        if(overlaps.length>0){
+          item.start=minToTime(ds.origStartMin);
+          item.end=minToTime(ds.origEndMin);
+          alertOverlap(overlaps,'plan');
+          renderBlocks();return;
+        }
+      }
+    }
+  }
+  // 実績ブロックの移動・リサイズ後の重複チェック
+  if(ds&&ds.col==='actual'){
+    const item=actuals.find(x=>x.id===ds.id);
+    if(item){
+      const overlaps=checkActualOverlap(item.start,item.end,item.id);
+      if(overlaps.length>0){
+        item.start=minToTime(ds.origStartMin);
+        item.end=minToTime(ds.origEndMin);
+        alertOverlap(overlaps,'actual');
+        renderBlocks();return;
+      }
+    }
+  }
+  // 予定ブロックのリサイズ後の重複チェック
+  if(ds&&ds.col==='plan'&&ds.mode!=='move'){
+    const item=plans.find(x=>x.id===ds.id);
+    if(item){
+      const overlaps=checkPlanOverlap(item.start,item.end,item.id);
+      if(overlaps.length>0){
+        item.start=minToTime(ds.origStartMin);
+        item.end=minToTime(ds.origEndMin);
+        alertOverlap(overlaps,'plan');
+        renderBlocks();return;
+      }
+    }
+  }
+  pushUndo();
+  saveData();
+  renderBlocks();updateStats();renderLearningChecks();
+});
+
+// ---- タイムライン描画 ----
+function makeGridLines(px){
+  let s='';
+  for(let h=START_H;h<=END_H;h++){
+    const top=(h-START_H)*60*px;
+    const isMajor=(h%6===0);
+    let lineColor;
+    if(h>=0&&h<6)        lineColor=isMajor?'#D0DAF0':'#ECF0FA';
+    else if(h>=6&&h<12)  lineColor=isMajor?'#C0D8C4':'#E4F0E6';
+    else if(h>=12&&h<18) lineColor=isMajor?'#F0DCBB':'#F8EFE0';
+    else                 lineColor=isMajor?'#D8C8EE':'#EEE6F8';
+    s+=`<div style="position:absolute;top:${top}px;left:0;right:0;border-top:${isMajor?'1px':'0.5px'} solid ${lineColor}"></div>`;
+  }
+  return s;
+}
+
+function makeBlock(item,col,bg,fg,border,badge,isCarry=false){
+  const top=toPx(item.start,PX),h=hPx(item.start,item.end,PX);
+  const el=document.createElement('div');
+  el.setAttribute('data-block','1');
+  el.setAttribute('data-col',col);
+  el.setAttribute('data-id',item.id);
+  Object.assign(el.style,{
+    position:'absolute',top:top+'px',left:'4px',right:'4px',
+    height:h+'px',background:isCarry?bg+'cc':bg,
+    border:`${isCarry?'1.5px dashed':'0.5px solid'} ${border}`,
+    borderRadius:'4px',overflow:'visible',padding:'0',
+    cursor:isCarry?'default':'grab',boxSizing:'border-box',
+    opacity:isCarry?'0.75':'1'
+  });
+
+  // 高さに応じてハンドルサイズを調整
+  const handleH=h>=20?8:Math.floor(h/4);
+  const bodyTop=h<36?0:handleH; // 小さい時は上下余白なし
+  const bodyBot=h<36?0:handleH;
+
+  // 上ハンドル
+  const topH=document.createElement('div');
+  Object.assign(topH.style,{position:'absolute',top:`-${handleH}px`,left:'0',right:'0',height:`${handleH*2}px`,cursor:'ns-resize',zIndex:'3'});
+  if(!isCarry)topH.addEventListener('mousedown',e=>startInteract(e,'resizeTop',col,item.id));
+
+  // 本体
+  const body=document.createElement('div');
+  const bodyPad=h<36?2:5;
+  Object.assign(body.style,{
+    position:'absolute',top:`${bodyTop}px`,left:'0',right:'0',
+    bottom:`${bodyBot}px`,cursor:isCarry?'default':'grab',
+    overflow:'hidden',padding:`0 ${bodyPad}px`
+  });
+
+  const innerH=h-bodyTop-bodyBot;
+  const timeStr=`${item.start}〜${item.end}（${toH(dur(item.start,item.end))}）`;
+  const carryLabel=isCarry?`<span style="font-size:9px;opacity:0.6"> 前日から</span>`:'';
+
+  if(innerH>=36){
+    // 十分な高さ：タスク名＋時刻2行
+    body.innerHTML=`
+      <div style="font-size:11px;font-weight:500;color:${fg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4">${item.name}${badge?' '+badge:''}</div>
+      <div class="block-time" style="font-size:10px;color:${fg};opacity:0.8;line-height:1.4">${timeStr}${carryLabel}</div>`;
+  } else {
+    // 小さい：名前＋時刻を横並び1行（フォント縮小）
+    const fs=Math.max(7, Math.min(11, innerH-2));
+    const lh=Math.max(innerH, fs);
+    body.innerHTML=`<div style="display:flex;align-items:center;gap:3px;overflow:hidden;height:${lh}px">
+      <span style="font-size:${fs}px;font-weight:600;color:${fg};white-space:nowrap;flex-shrink:0">${item.name}${badge?' '+badge:''}</span>
+      <span style="font-size:${Math.max(6,fs-1)}px;color:${fg};opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0">${timeStr}</span>
+    </div>`;
+  }
+
+  if(!isCarry){
+    body.addEventListener('mousedown',e=>startInteract(e,'move',col,item.id));
+  }
+
+  // 下ハンドル
+  const botH=document.createElement('div');
+  Object.assign(botH.style,{position:'absolute',bottom:`-${handleH}px`,left:'0',right:'0',height:`${handleH*2}px`,cursor:'ns-resize',zIndex:'3'});
+  const grip=document.createElement('div');
+  Object.assign(grip.style,{position:'absolute',bottom:'1px',left:'50%',transform:'translateX(-50%)',width:'20px',height:'2px',borderRadius:'1px',background:fg,opacity:'0.35'});
+  botH.appendChild(grip);
+  if(!isCarry)botH.addEventListener('mousedown',e=>startInteract(e,'resizeBot',col,item.id));
+  el.appendChild(topH);el.appendChild(body);el.appendChild(botH);
+  return el;
+}
+
+function renderBlocks(){
+  if(!planCol||!actualCol)return;
+  planCol.querySelectorAll('[data-block]').forEach(n=>n.remove());
+  actualCol.querySelectorAll('[data-block]').forEach(n=>n.remove());
+  // 前日キャリーオーバー
+  const carry=getCarryFromPrev();
+  carry.plans.forEach(p=>{
+    planCol.appendChild(makeBlock({...p,start:'00:00'},'plan','#E6F1FB','#0C447C','#B5D4F4','',true));
+  });
+  carry.actuals.forEach(a=>{
+    const pl=mPlan(a);const{bg,fg}=dColor(pl,a);
+    const border=bg==='#FAECE7'?'#F0997B':bg==='#EAF3DE'?'#97C459':'#5DCAA5';
+    actualCol.appendChild(makeBlock({...a,start:'00:00'},'actual',bg,fg,border,'',true));
+  });
+  // 当日ブロック
+  plans.forEach(p=>{
+    const overnight=isOvernight(p.start,p.end);
+    const badge=overnight?'<span style="font-size:9px;background:#B5D4F433;color:#0C447C;border-radius:2px;padding:0 3px">→翌日</span>':'';
+    planCol.appendChild(makeBlock({...p,end:overnight?'24:00':p.end},'plan','#E6F1FB','#0C447C','#B5D4F4',badge));
+  });
+  actuals.forEach(a=>{
+    const pl=mPlan(a);const{bg,fg}=dColor(pl,a);
+    const border=bg==='#FAECE7'?'#F0997B':bg==='#EAF3DE'?'#97C459':'#5DCAA5';
+    const overnight=isOvernight(a.start,a.end);
+    let badge='';
+    if(overnight)badge=`<span style="font-size:9px;background:${fg}33;color:${fg};border-radius:2px;padding:0 3px">→翌日</span>`;
+    else if(pl){const d=dur(a.start,a.end)-dur(pl.start,pl.end);if(Math.abs(d)>=15)badge=`<span style="font-size:9px;background:${fg}33;color:${fg};border-radius:2px;padding:0 3px">${d>0?'+':''}${d}分</span>`;}
+    actualCol.appendChild(makeBlock({...a,end:overnight?'24:00':a.end},'actual',bg,fg,border,badge));
+  });
+}
+
+function render(){
+  const totalPx=(END_H-START_H)*60*PX;
+  const gl=makeGridLines(PX);
+  const timeHTML=makeTimeHTML(PX);
+  const grid=document.getElementById('tlGrid');
+  grid.innerHTML='';
+
+  const timeCol=document.createElement('div');
+  timeCol.style.cssText=`position:relative;height:${totalPx}px;border-right:0.5px solid #ddd;background:#f5f5f2;cursor:ns-resize;user-select:none`;
+  timeCol.title='↑ ↓ ドラッグでタイムラインを伸縮';
+  timeCol.innerHTML=gl+timeHTML;
+  timeCol.addEventListener('mousedown',onTimeColScaleStart);
+  grid.appendChild(timeCol);
+
+  planCol=document.createElement('div');
+  planCol.style.cssText=`position:relative;height:${totalPx}px;border-right:0.5px solid #ddd`;
+  planCol.innerHTML=gl;
+  // D&Dイベントを各カラムにも設定（バブリング対策）
+  planCol.addEventListener('dragover',e=>{if(!dragTmpl)return;e.preventDefault();e.dataTransfer.dropEffect='copy';});
+  planCol.addEventListener('drop',e=>{e.preventDefault();if(!dragTmpl)return;handleDrop(e);});
+  grid.appendChild(planCol);
+
+  actualCol=document.createElement('div');
+  actualCol.style.cssText=`position:relative;height:${totalPx}px`;
+  actualCol.innerHTML=gl;
+  actualCol.addEventListener('dragover',e=>{if(!dragTmpl)return;e.preventDefault();e.dataTransfer.dropEffect='copy';});
+  actualCol.addEventListener('drop',e=>{e.preventDefault();if(!dragTmpl)return;handleDrop(e);});
+  grid.appendChild(actualCol);
+
+  // tlGrid全体にはdragoverのみ（dropはplanCol/actualColで処理）
+  grid.ondragover=onDragOver;
+  renderBlocks();
+  // 初回のみ7時付近にスクロール（削除・編集後はスクロール位置を維持）
+  if(!render._initialized){
+    document.getElementById('tlScroll').scrollTop=Math.max(0,(7*60-30)*PX);
+    render._initialized=true;
+  }
+  updateStats();
+  renderNowLine();
+}
+
+// ---- 現在時刻線 ----
+function renderNowLine(){
+  const isToday=(cY===todayY&&cM===todayM&&cD===todayD);
+  [planCol,actualCol].forEach((col,i)=>{
+    if(!col)return;
+    let line=col.querySelector('.now-line');
+    if(!line){
+      line=document.createElement('div');
+      line.className='now-line';
+      line.style.cssText='position:absolute;left:0;right:0;height:2px;background:#e53935;z-index:10;pointer-events:none;';
+      // 予定列のみ時刻ラベルを表示
+      if(i===0){
+        const label=document.createElement('div');
+        label.className='now-line-label';
+        label.style.cssText='position:absolute;left:4px;top:-9px;background:#e53935;color:#fff;font-size:10px;font-weight:500;padding:1px 5px;border-radius:3px;white-space:nowrap;pointer-events:none;';
+        line.appendChild(label);
+      }
+      col.appendChild(line);
+    }
+    if(!isToday){line.style.display='none';return;}
+    const now=new Date();
+    const nowMin=now.getHours()*60+now.getMinutes();
+    const top=(nowMin-START_H*60)*PX;
+    line.style.display='block';
+    line.style.top=top+'px';
+    // 時刻ラベルを更新
+    const label=line.querySelector('.now-line-label');
+    if(label){
+      const hh=String(now.getHours()).padStart(2,'0');
+      const mm=String(now.getMinutes()).padStart(2,'0');
+      label.textContent=hh+':'+mm;
+    }
+  });
+}
+
+// 1分ごとに現在時刻線を更新
+(function startNowLineTimer(){
+  setInterval(renderNowLine, 60000);
+}());
+
+function resetScale(){
+  PX=2.0;
+  try{localStorage.removeItem('yojitsu:px');}catch(e){}
+  render._initialized=false;
+  render();
+}
+
+function updateStats(){}
+
+
+// ---- 時間軸ドラッグでスケール変更 ----
+// PX = 1分あたりのpx数。小さくすると同じ枠に多くの時間が入る（広く見える）
+let scaleState=null;
+let weekScaleState=null;
+
+function onWeekTimeColScaleStart(e){
+  if(e.button!==0)return;
+  e.preventDefault();e.stopPropagation();
+  const scrollArea=document.getElementById('weekScrollArea');
+  const rect=scrollArea.getBoundingClientRect();
+  const relY=(e.clientY-rect.top)+scrollArea.scrollTop;
+  const anchorMin=relY/WPX;
+  const anchorScreenY=e.clientY-rect.top;
+  weekScaleState={startY:e.clientY,startWPX:WPX,anchorMin,anchorScreenY};
+  document.body.style.cursor='ns-resize';
+  document.body.style.userSelect='none';
+}
+
+function onTimeColScaleStart(e){
+  if(e.button!==0)return;
+  if(dragState)return;
+  e.preventDefault();e.stopPropagation();
+  const tlScroll=document.getElementById('tlScroll');
+  const rect=tlScroll.getBoundingClientRect();
+  // マウス位置に対応する時刻（分）をアンカーとして記録
+  const relY=(e.clientY-rect.top)+tlScroll.scrollTop;
+  const anchorMin=relY/PX;
+  const anchorScreenY=e.clientY-rect.top; // 画面内での相対Y（固定）
+  scaleState={startY:e.clientY,startPX:PX,anchorMin,anchorScreenY};
+  document.body.style.cursor='ns-resize';
+  document.body.style.userSelect='none';
+  showScaleIndicator(PX);
+}
+
+
+function reRenderWeekScale(){
+  const totalPx=(END_H-START_H)*60*WPX;
+  const gl=makeGridLines(WPX);
+  const timeHTML=makeTimeHTML(WPX);
+  // 時間軸列を更新
+  const timeCol=document.getElementById('weekTimeCol');
+  if(timeCol){
+    timeCol.style.height=totalPx+'px';
+    timeCol.innerHTML=gl+timeHTML;
+  }
+  // 各日セルの高さ・グリッドライン・ブロック位置を更新
+  for(let i=0;i<7;i++){
+    const cell=document.getElementById('weekDayCell'+i);
+    if(!cell)continue;
+    cell.style.height=totalPx+'px';
+    // グリッドライン（title/onclick属性なしのdiv）を再生成
+    Array.from(cell.children).forEach(c=>{
+      if(!c.hasAttribute('title')&&!c.getAttribute('onclick'))c.remove();
+    });
+    cell.insertAdjacentHTML('afterbegin',gl);
+    // ブロック位置をtitle属性から再計算
+    Array.from(cell.querySelectorAll('[title]')).forEach(b=>{
+      const m=(b.getAttribute('title')||'').match(/(\d{2}:\d{2})〜(\d{2}:\d{2})/);
+      if(m){
+        b.style.top=toPx(m[1],WPX)+'px';
+        b.style.height=Math.max(2,hPx(m[1],m[2],WPX))+'px';
+      }
+    });
+  }
+  // スクロール位置を維持（アンカー分）
+  const scrollArea=document.getElementById('weekScrollArea');
+  if(scrollArea&&weekScaleState){
+    scrollArea.scrollTop=Math.max(0,weekScaleState.anchorMin*WPX-weekScaleState.anchorScreenY);
+  }
+}
+
+function reRenderScale(){
+  const totalPx=(END_H-START_H)*60*PX;
+  const gl=makeGridLines(PX);
+  const timeHTML=makeTimeHTML(PX);
+  const grid=document.getElementById('tlGrid');
+  const cols=grid.children;
+  if(cols[0]){
+    cols[0].style.height=totalPx+'px';
+    cols[0].innerHTML=gl+timeHTML;
+  }
+  if(cols[1]){cols[1].style.height=totalPx+'px';cols[1].innerHTML=gl;}
+  if(cols[2]){cols[2].style.height=totalPx+'px';cols[2].innerHTML=gl;}
+  planCol=cols[1]||planCol;
+  actualCol=cols[2]||actualCol;
+  renderBlocks();
+}
+
+// 時間ラベルHTML生成（PXに応じて文字サイズ・表示間隔を連動）
+function makeTimeHTML(px){
+  // px小さい→間引く。1時間あたりのpxが12以下なら2時間ごと、6以下なら3時間ごと
+  const hourPx=px*60;
+  const step=hourPx<10?3:hourPx<18?2:1; // 何時間おきにラベルを出すか
+  let s='';
+  for(let h=START_H;h<=END_H;h++){
+    if(h!==0&&h!==24&&h%step!==0)continue; // 間引き
+    const top=(h-START_H)*60*px;
+    const label=h===24?'24:00':`${String(h).padStart(2,'0')}:00`;
+    const isMid=(h===0||h===24),isMajor=(h%6===0);
+    const labelTop=h===0?top+2:top-7;
+    let timeColor;
+    if(h>=0&&h<6)        timeColor=isMajor?'#3A5A9B':'#6B85B8';
+    else if(h>=6&&h<12)  timeColor=isMajor?'#2E6B42':'#5A9A6E';
+    else if(h>=12&&h<18) timeColor=isMajor?'#A05A18':'#C47E3A';
+    else                 timeColor=isMajor?'#5E3A8A':'#8B60BB';
+    if(isMid)timeColor='#111';
+    // 文字サイズをPXに連動（最小8px〜最大12px）
+    const fBase=isMid?12:isMajor?11:10;
+    const fScale=Math.max(0.7,Math.min(1.1,px/2.0));
+    const fs=Math.round(fBase*fScale);
+    s+=`<div style="position:absolute;top:${labelTop}px;left:0;right:4px;text-align:right;font-size:${fs}px;font-weight:${isMid?'700':isMajor?'600':'500'};color:${timeColor}">${label}</div>`;
+  }
+  return s;
+}
+
+// スケールインジケータ（画面中央下に表示する小さなバッジ）
+let scaleIndTimer=null;
+function showScaleIndicator(px){
+  let ind=document.getElementById('scaleIndicator');
+  if(!ind){
+    ind=document.createElement('div');
+    ind.id='scaleIndicator';
+    Object.assign(ind.style,{
+      position:'fixed',bottom:'60px',left:'50%',transform:'translateX(-50%)',
+      background:'rgba(30,30,30,0.75)',color:'#fff',fontSize:'12px',
+      padding:'5px 16px',borderRadius:'20px',pointerEvents:'none',
+      zIndex:'100',transition:'opacity .25s',whiteSpace:'nowrap'
+    });
+    document.body.appendChild(ind);
+  }
+  const visibleH=(px>0)?Math.round((document.getElementById('tlScroll').clientHeight||400)/px/60*10)/10:'-';
+  ind.textContent=`表示範囲 約 ${visibleH}h　（1分=${px.toFixed(1)}px）`;
+  ind.style.opacity='1';
+  clearTimeout(scaleIndTimer);
+}
+function hideScaleIndicator(){
+  scaleIndTimer=setTimeout(()=>{
+    const ind=document.getElementById('scaleIndicator');
+    if(ind)ind.style.opacity='0';
+  },900);
+}
+
+// ---- 時刻入力ヘルパー ----
+function getModalTime(hId,mId){
+  const h=parseInt(document.getElementById(hId).value);
+  const m=parseInt(document.getElementById(mId).value)||0;
+  if(isNaN(h))return '';
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function setModalTime(hId,mId,timeStr){
+  if(!timeStr){
+    document.getElementById(hId).value='';
+    document.getElementById(mId).value='';
+    return;
+  }
+  const[h,m]=timeStr.split(':').map(Number);
+  document.getElementById(hId).value=h;
+  document.getElementById(mId).value=m;
+}
+// 分inputで15分単位にスナップ
+function snapModalMin(el){
+  let v=parseInt(el.value)||0;
+  v=Math.round(v/15)*15;
+  if(v>=60)v=45;
+  if(v<0)v=0;
+  el.value=v;
+}
+// 時inputで0-23にクランプ
+function clampModalH(el){
+  let v=parseInt(el.value);
+  if(isNaN(v))return;
+  if(v<0)v=0;if(v>23)v=23;
+  el.value=v;
+}
+
+// ---- タスクmodal ----
+function openAdd(col){
+  modalMode='add';modalCol=col;modalEditId=null;
+  document.getElementById('modalTitle').textContent=(col==='plan'?'予定':'実績')+'を追加';
+  document.getElementById('mName').value='';
+  setModalTime('mStartH','mStartM','');
+  setModalTime('mEndH','mEndM','');
+  document.getElementById('modalDelBtn').style.display='none';
+  document.getElementById('modalBg').style.display='flex';
+  setTimeout(()=>document.getElementById('mName').focus(),50);
+}
+function openEdit(col,id){
+  const item=(col==='plan'?plans:actuals).find(x=>x.id===id);
+  if(!item)return;
+  modalMode='edit';modalCol=col;modalEditId=id;
+  document.getElementById('modalTitle').textContent=(col==='plan'?'予定':'実績')+'を編集';
+  document.getElementById('mName').value=item.name;
+  setModalTime('mStartH','mStartM',item.start);
+  setModalTime('mEndH','mEndM',item.end);
+  document.getElementById('modalDelBtn').style.display='block';
+  document.getElementById('modalBg').style.display='flex';
+  setTimeout(()=>{
+    const el=document.getElementById('mStartH');
+    el.focus();
+    el.select();
+  },50);
+}
+function closeModal(){
+  document.getElementById('modalBg').style.display='none';
+}
+// ---- 実績重複チェック ----
+function checkActualOverlap(start, end, excludeId=null){
+  // 重複しているブロックを返す（excludeIdは編集中のブロック自身を除外）
+  const sMin=toMin(start), eMin=toMin(end);
+  return actuals.filter(a=>{
+    if(excludeId!==null && a.id===excludeId) return false;
+    const aS=toMin(a.start), aE=toMin(a.end);
+    return sMin < aE && eMin > aS;
+  });
+}
+function checkPlanOverlap(start, end, excludeId=null){
+  const sMin=toMin(start), eMin=toMin(end);
+  return plans.filter(p=>{
+    if(excludeId!==null && p.id===excludeId) return false;
+    const pS=toMin(p.start), pE=toMin(p.end);
+    return sMin < pE && eMin > pS;
+  });
+}
+function alertOverlap(overlaps, col='actual'){
+  const label=col==='plan'?'予定':'実績';
+  const msg=overlaps.map(a=>`・${a.name}（${a.start}〜${a.end}）`).join('<br>');
+  document.getElementById('overlapAlertTitle').textContent=`以下の${label}と時間が重なっています`;
+  document.getElementById('overlapAlertBody').innerHTML=msg+'<br><br>時間帯を調整してください。';
+  document.getElementById('overlapAlertBg').style.display='flex';
+}
+function closeOverlapAlert(){
+  document.getElementById('overlapAlertBg').style.display='none';
+}
+
+function saveModal(){
+  const name=document.getElementById('mName').value.trim();
+  const start=getModalTime('mStartH','mStartM');
+  const end=getModalTime('mEndH','mEndM');
+  if(!name||!start||!end){alert('名前・開始・終了を入力してください');return;}
+  const overnight=isOvernight(start,end);
+  if(!overnight&&toMin(end)<=toMin(start)){alert('終了は開始より後にしてください');return;}
+  pushUndo();
+
+  // 重複チェック（予定・実績どちらも）
+  const excludeId=modalMode==='edit'?modalEditId:null;
+  if(modalCol==='actual'){
+    const overlaps=checkActualOverlap(start,end,excludeId);
+    if(overlaps.length>0){alertOverlap(overlaps,'actual');return;}
+  } else {
+    const overlaps=checkPlanOverlap(start,end,excludeId);
+    if(overlaps.length>0){alertOverlap(overlaps,'plan');return;}
+  }
+
+  const arr=modalCol==='plan'?plans:actuals;
+  if(modalMode==='add'){
+    const item={id:nextId++,name,start,end};
+    arr.push(item);
+    if(overnight)saveCarryOver(modalCol,item);
+  }else{
+    const item=arr.find(x=>x.id===modalEditId);
+    if(item){
+      const was=isOvernight(item.start,item.end);
+
+      item.name=name;item.start=start;item.end=end;
+      if(overnight)saveCarryOver(modalCol,item);
+      else if(was)removeCarryOver(modalCol,item.id);
+    }
+  }
+  closeModal();clearSelect();saveData();render();renderLearningChecks();
+}
+function deleteModal(){
+  pushUndo();
+  const arr=modalCol==='plan'?plans:actuals;
+  const item=arr.find(x=>x.id===modalEditId);
+  if(item&&isOvernight(item.start,item.end))removeCarryOver(modalCol,item.id);
+  if(modalCol==='plan')plans=plans.filter(x=>x.id!==modalEditId);
+  else actuals=actuals.filter(x=>x.id!==modalEditId);
+  closeModal();clearSelect();
+  saveData();
+  render();renderLearningChecks();
+}
+document.getElementById('modalBg').addEventListener('click',function(e){if(e.target===this)closeModal();});
+document.getElementById('modalBg').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveModal();}
+  if((e.key==='Delete'||e.key==='Backspace')&&modalMode==='edit'){
+    // テキスト入力中は除外
+    if(document.activeElement.tagName==='INPUT')return;
+    e.preventDefault();
+    deleteModal();
+  }
+});
+// 分inputのblurでスナップ、時inputのblurでクランプ
+['mStartH','mEndH'].forEach(id=>document.getElementById(id).addEventListener('blur',function(){clampModalH(this);}));
+['mStartM','mEndM'].forEach(id=>document.getElementById(id).addEventListener('blur',function(){snapModalMin(this);}));
+
+// 開始時刻が変わったら終了時刻を自動計算
+function autoCalcEnd(){
+  const name=document.getElementById('mName').value.trim();
+  const tmpl=templates.find(t=>t.name===name);
+  if(!tmpl)return;
+  const start=getModalTime('mStartH','mStartM');
+  if(!start)return;
+  const endMin=toMin(start)+tmpl.dur;
+  const endTime=minToTime(endMin>=END_H*60?endMin-END_H*60:endMin);
+  setModalTime('mEndH','mEndM',endTime);
+}
+['mStartH','mStartM'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',autoCalcEnd);
+  document.getElementById(id).addEventListener('blur',autoCalcEnd);
+});
+
+function saveAndMonth(){
+  saveData();
+  monthY=cY;monthM=cM;
+  showMonth();
+}
+function showMonthFromWeek(){
+  // 週表示中の週が属する月を表示
+  monthY=weekSunDate.y;monthM=weekSunDate.m;
+  showMonth();
+}
+function showDailyFromMonth(){
+  // 月表示から日次へ（cY/cM/cDをそのまま使う）
+  showDaily();
+}
+function showWeekFromMonth(){
+  // 月表示から週次へ（月の最初の日が属する週へ）
+  const d=new Date(monthY,monthM-1,1);
+  d.setDate(d.getDate()-d.getDay());
+  weekSunDate={y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()};
+  showWeek();
+}
+function showMonth(){
+  document.getElementById('pageDaily').classList.remove('active');
+  document.getElementById('pageWeek').classList.remove('active');
+  document.getElementById('pageMonth').classList.add('active');
+  document.getElementById('pageDashboard').classList.remove('active');
+  renderMonth();
+}
+
+// ---- 月次 ----
+function isThisMonth(){return monthY===todayY&&monthM===todayM;}
+function changeMonth(n){
+  const d=new Date(monthY,monthM-1+n,1);
+  monthY=d.getFullYear();monthM=d.getMonth()+1;
+  renderMonth();
+}
+function goThisMonth(){
+  monthY=todayY;monthM=todayM;
+  renderMonth();
+}
+function renderMonth(){
+  const titleEl=document.getElementById('monthTitle');
+  titleEl.textContent=`${monthY}年${monthM}月`;
+  titleEl.className='date-display'+(isThisMonth()?' is-today':'');
+  const btn=document.getElementById('btnThisMonth');
+  if(btn){btn.style.opacity=isThisMonth()?'0.35':'1';btn.style.pointerEvents=isThisMonth()?'none':'auto';}
+
+  const firstDow=new Date(monthY,monthM-1,1).getDay();
+  const lastDay=new Date(monthY,monthM,0).getDate();
+  const cells=[];
+  for(let i=0;i<firstDow;i++){
+    const d=new Date(monthY,monthM-1,-firstDow+1+i);
+    cells.push({y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),otherMonth:true});
+  }
+  for(let d=1;d<=lastDay;d++) cells.push({y:monthY,m:monthM,d,otherMonth:false});
+  while(cells.length%7!==0){
+    const nd=new Date(monthY,monthM,cells.length-lastDay-firstDow+1);
+    cells.push({y:nd.getFullYear(),m:nd.getMonth()+1,d:nd.getDate(),otherMonth:true});
+  }
+
+  // Firebaseから当月分データを並行取得
+  const targetCells=cells.filter(c=>!c.otherMonth);
+  if(currentUid){
+    const promises=targetCells.map(cell=>{
+      const ds=mkDateStr(cell.y,cell.m,cell.d);
+      return db.ref('users/'+currentUid+'/days/'+ds).once('value').then(snap=>{
+        const data=snap.val();
+        if(data){
+          data.plans=(data.plans||[]).filter(p=>!p.carryId);
+          data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
+          try{localStorage.setItem('yojitsu:'+ds,JSON.stringify(data));}catch(e){}
+          return {ds,data};
+        }
+        try{const raw=localStorage.getItem('yojitsu:'+ds);if(raw){const d2=JSON.parse(raw);d2.plans=(d2.plans||[]).filter(p=>!p.carryId);d2.actuals=(d2.actuals||[]).filter(a=>!a.carryId);return{ds,data:d2};}}catch(e){}
+        return {ds,data:{plans:[],actuals:[],learningChecks:{}}};
+      });
+    });
+    Promise.all(promises).then(results=>{
+      const cache={};
+      results.forEach(({ds,data})=>{cache[ds]=data;});
+      renderMonthWithCache(cells,cache);
+    });
+  }else{
+    const cache={};
+    targetCells.forEach(cell=>{
+      const ds=mkDateStr(cell.y,cell.m,cell.d);
+      cache[ds]=loadData(cell.y,cell.m,cell.d)||{plans:[],actuals:[],learningChecks:{}};
+    });
+    renderMonthWithCache(cells,cache);
+  }
+}
+
+function renderMonthWithCache(cells,cache){
+  const learningItems=getLearningItems();
+  const monthItemMin={};
+  let monthTotalMin=0;
+  learningItems.forEach(t=>{monthItemMin[t.id]=0;});
+
+  const gridHTML=cells.map((cell,ci)=>{
+    const dow=ci%7;
+    const isT=!cell.otherMonth&&cell.y===todayY&&cell.m===todayM&&cell.d===todayD;
+    const isSun=dow===0,isSat=dow===6;
+    const holiday=!cell.otherMonth?getHoliday(cell.y,cell.m,cell.d):null;
+    const isRed=isSun||!!holiday;
+    const isLastCol=dow===6;
+    const isLastRow=ci>=cells.length-7;
+
+    let planMin=0,actualMin=0,checks={},dayActuals=[];
+    if(!cell.otherMonth){
+      const ds=mkDateStr(cell.y,cell.m,cell.d);
+      const data=cache[ds]||{plans:[],actuals:[],learningChecks:{}};
+      planMin=data.plans.reduce((s,x)=>s+dur(x.start,x.end),0);
+      actualMin=data.actuals.reduce((s,x)=>s+dur(x.start,x.end),0);
+      checks=data.learningChecks||{};
+      dayActuals=data.actuals||[];
+      learningItems.forEach(t=>{
+        const m=dayActuals.filter(b=>(b.name||'').trim()===t.name.trim())
+          .reduce((s,b)=>{const dd=toMin(b.end)-toMin(b.start);return s+(dd>0?dd:0);},0);
+        if(m>0){monthItemMin[t.id]+=m;monthTotalMin+=m;}
+      });
+    }
+
+    const MAX_MIN=480;
+    const pPct=Math.min(100,planMin/MAX_MIN*100).toFixed(1);
+    const aPct=Math.min(100,actualMin/MAX_MIN*100).toFixed(1);
+
+    const doneCount=learningItems.filter(t=>{
+      const autoOk=dayActuals.filter(b=>(b.name||'').trim()===t.name.trim())
+        .reduce((s,b)=>{const dd=toMin(b.end)-toMin(b.start);return s+(dd>0?dd:0);},0)>0;
+      return autoOk||!!checks[t.id];
+    }).length;
+    const hasLearning=learningItems.length>0;
+
+    const borderR=isLastCol?'':'border-right:0.5px solid #eee;';
+    const borderB=isLastRow?'':'border-bottom:0.5px solid #eee;';
+    const bg=isT?'#fffdf5':cell.otherMonth?'#fafafa':'#fff';
+    const dateColor=cell.otherMonth?'#ccc':isRed?'#993C1D':isSat?'#0C447C':'#1a1a1a';
+    const clickFn=cell.otherMonth?'':`jumpToDay(${cell.y},${cell.m},${cell.d})`;
+    return `<div style="padding:6px 8px 8px;min-height:80px;background:${bg};${borderR}${borderB}${cell.otherMonth?'':'cursor:pointer'}"
+      onclick="${clickFn}"
+      onmouseover="${cell.otherMonth?'':` this.style.background='#f0f0f0'`}"
+      onmouseout="this.style.background='${bg}'">
+      <div style="font-size:12px;font-weight:${isT?'700':'500'};color:${dateColor};margin-bottom:4px">${cell.d}</div>
+      ${!cell.otherMonth&&(planMin>0||actualMin>0)?`
+      <div style="margin-bottom:3px">
+        <div style="height:3px;background:#E6F1FB;border-radius:2px;margin-bottom:2px;overflow:hidden"><div style="height:100%;width:${pPct}%;background:#378ADD;border-radius:2px"></div></div>
+        <div style="height:3px;background:#E1F5EE;border-radius:2px;overflow:hidden"><div style="height:100%;width:${aPct}%;background:#1D9E75;border-radius:2px"></div></div>
+      </div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap">
+        ${planMin>0?`<span style="font-size:9px;color:#0C447C;background:#E6F1FB;border-radius:3px;padding:0 4px">${fmtMin(planMin)}</span>`:''}
+        ${actualMin>0?`<span style="font-size:9px;color:#085041;background:#E1F5EE;border-radius:3px;padding:0 4px">${fmtMin(actualMin)}</span>`:''}
+      </div>`:''}
+      ${hasLearning&&!cell.otherMonth&&doneCount>0?`<div style="margin-top:4px;font-size:9px;color:${doneCount===learningItems.length?'#1D9E75':'#bbb'}">📚 ${doneCount}/${learningItems.length}</div>`:''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('monthGrid').innerHTML=gridHTML;
+
+  // 月次学習集計
+  const area=document.getElementById('monthLearningArea');
+  const detail=document.getElementById('monthLearningDetail');
+  const totalEl=document.getElementById('monthLearningTotal');
+  if(!learningItems.length){area.style.display='none';return;}
+  area.style.display='block';
+  totalEl.textContent=monthTotalMin>0?`月合計 ${fmtMin(monthTotalMin)}`:'記録なし';
+  detail.innerHTML=learningItems.map(t=>{
+    const min=monthItemMin[t.id];
+    const pct=monthTotalMin>0?Math.min(100,min/monthTotalMin*100).toFixed(1):0;
+    return `<div style="display:flex;flex-direction:column;gap:3px;min-width:120px;padding:8px 12px;background:#f5f5f2;border-radius:8px">
+      <div style="font-size:12px;font-weight:500;color:#444">${t.name}</div>
+      <div style="font-size:15px;font-weight:600;color:${min>0?'#3C3489':'#ccc'}">${min>0?fmtMin(min):'---'}</div>
+      ${min>0?`<div style="height:4px;background:#ddd;border-radius:2px;overflow:hidden;margin-top:2px"><div style="height:100%;width:${pct}%;background:#3C3489;border-radius:2px"></div></div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ---- 週次 ----
+function isThisWeek(){
+  const d=new Date();d.setDate(d.getDate()-d.getDay());
+  return weekSunDate.y===d.getFullYear()&&weekSunDate.m===d.getMonth()+1&&weekSunDate.d===d.getDate();
+}
+function updateWeekTodayBtn(){
+  const btn=document.getElementById('btnThisWeek');
+  if(!btn)return;
+  btn.style.opacity=isThisWeek()?'0.35':'1';
+  btn.style.pointerEvents=isThisWeek()?'none':'auto';
+}
+function changeWeek(n){
+  const d=new Date(weekSunDate.y,weekSunDate.m-1,weekSunDate.d+n*7);
+  weekSunDate={y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()};
+  renderWeek();
+}
+
+function goThisWeek(){
+  const d=new Date();d.setDate(d.getDate()-d.getDay());
+  weekSunDate={y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()};
+  renderWeek();
+}
+function renderWeek(){
+  updateWeekTodayBtn();
+  const dates=Array.from({length:7},(_,i)=>{
+    const d=new Date(weekSunDate.y,weekSunDate.m-1,weekSunDate.d+i);
+    return{y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),dow:d.getDay()};
+  });
+  const sun=dates[0],sat=dates[6];
+  const weekTitleEl=document.getElementById('weekTitle');
+  weekTitleEl.textContent=
+    `${sun.y}/${String(sun.m).padStart(2,'0')}/${String(sun.d).padStart(2,'0')} 〜 ${String(sat.m).padStart(2,'0')}/${String(sat.d).padStart(2,'0')}`;
+  weekTitleEl.className='date-display'+(isThisWeek()?' is-today':'');
+
+  // Firebaseから7日分のデータを並行取得してから描画
+  if(currentUid){
+    const promises=dates.map(dt=>{
+      const ds=mkDateStr(dt.y,dt.m,dt.d);
+      return db.ref('users/'+currentUid+'/days/'+ds).once('value').then(snap=>{
+        const data=snap.val();
+        if(data){
+          data.plans=(data.plans||[]).filter(p=>!p.carryId);
+          data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
+          try{localStorage.setItem('yojitsu:'+ds,JSON.stringify(data));}catch(e){}
+          return data;
+        }
+        // Firebaseになければlocalから
+        try{const raw=localStorage.getItem('yojitsu:'+ds);if(raw){const d2=JSON.parse(raw);d2.plans=(d2.plans||[]).filter(p=>!p.carryId);d2.actuals=(d2.actuals||[]).filter(a=>!a.carryId);return d2;}}catch(e){}
+        return {plans:[],actuals:[],learningChecks:{}};
+      });
+    });
+    Promise.all(promises).then(weekData=>renderWeekWithData(dates,weekData));
+  }else{
+    const weekData=dates.map(dt=>loadData(dt.y,dt.m,dt.d)||{plans:[],actuals:[]});
+    renderWeekWithData(dates,weekData);
+  }
+}
+
+function renderWeekWithData(dates,weekData){
+  document.getElementById('weekDayHeaders').innerHTML=dates.map((dt,i)=>{
+    const isT=(dt.y===todayY&&dt.m===todayM&&dt.d===todayD);
+    const isSun=dt.dow===0,isSat=dt.dow===6;
+    const holiday=getHoliday(dt.y,dt.m,dt.d);
+    const isRed=isSun||!!holiday;
+    const data=weekData[i];
+    const pT=data.plans.reduce((s,x)=>s+dur(x.start,x.end),0);
+    const aT=data.actuals.reduce((s,x)=>s+dur(x.start,x.end),0);
+
+    const holStr=holiday?`<div style="font-size:9px;color:#993C1D;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${holiday}</div>`:'';
+    return `<div onclick="jumpToDay(${dt.y},${dt.m},${dt.d})" style="padding:6px 4px;text-align:center;border-bottom:0.5px solid #ddd;border-right:0.5px solid #ddd;font-size:11px;font-weight:500;background:${isT?'#FAEEDA':'transparent'};color:${isRed?'#993C1D':isSat?'#0C447C':'#1a1a1a'};cursor:pointer">
+      <div>${DAYS[dt.dow]}</div><div style="font-size:10px;color:#999">${dt.m}/${dt.d}</div>${holStr}</div>`;
+  }).join('');
+  let totalP=0,totalA=0,overD=0;
+  weekData.forEach(data=>{
+    const p=data.plans.reduce((s,x)=>s+dur(x.start,x.end),0);
+    const a=data.actuals.reduce((s,x)=>s+dur(x.start,x.end),0);
+    totalP+=p;totalA+=a;if(a>p+15)overD++;
+  });
+
+  const totalPx=(END_H-START_H)*60*WPX;
+  const gl=makeGridLines(WPX);
+  const timeHTML=makeTimeHTML(WPX);
+  let gridHTML=`<div id="weekTimeCol" style="position:relative;height:${totalPx}px;border-right:0.5px solid #ddd;background:#f5f5f2;cursor:ns-resize;user-select:none" title="ドラッグで縮尺変更">${gl}${timeHTML}</div>`;
+  dates.forEach((dt,i)=>{
+    const data=weekData[i];
+    const isT=(dt.y===todayY&&dt.m===todayM&&dt.d===todayD);
+    const isLast=i===6;
+    let blocks='';
+    data.plans.forEach(p=>{
+      const top=toPx(p.start,WPX),h=hPx(p.start,p.end,WPX);
+      blocks+=`<div onclick="jumpToDay(${dt.y},${dt.m},${dt.d})" title="${p.name} ${p.start}〜${p.end}" style="position:absolute;top:${top}px;left:1px;width:calc(50% - 2px);height:${h}px;background:#E6F1FB;border-radius:2px;overflow:hidden;padding:1px 2px;cursor:pointer">
+        <div style="font-size:9px;color:#0C447C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div></div>`;
+    });
+    data.actuals.forEach(a=>{
+      const top=toPx(a.start,WPX),h=hPx(a.start,a.end,WPX);
+      const pl=mPlan(a,data.plans);const{bg,fg}=dColor(pl,a);
+      blocks+=`<div onclick="jumpToDay(${dt.y},${dt.m},${dt.d})" title="${a.name} ${a.start}〜${a.end}" style="position:absolute;top:${top}px;right:1px;width:calc(50% - 2px);height:${h}px;background:${bg};border-radius:2px;overflow:hidden;padding:1px 2px;cursor:pointer">
+        <div style="font-size:9px;color:${fg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.name}</div></div>`;
+    });
+    gridHTML+=`<div id="weekDayCell${i}" style="position:relative;height:${totalPx}px;background:${isT?'#fffdf5':'#fff'};${isLast?'':'border-right:0.5px solid #ddd;'}">${gl}${blocks}</div>`;
+  });
+  document.getElementById('weekGrid').innerHTML=gridHTML;
+  setTimeout(()=>{
+    const scrollArea=document.getElementById('weekScrollArea');
+    // 高さをタイムラインコンテンツに合わせる（ただし画面の60%を上限に）
+    // scrollAreaの上端位置から画面下端まで、学習チェック・日記分を引いた高さ
+    const areaTop=scrollArea.getBoundingClientRect().top;
+    const LEARN_H=80;  // 学習チェックエリアの高さ
+    const DIARY_H=120;  // 日記エリアの高さ
+    const MARGIN=40;   // 余白
+    const fixedH=Math.max(200, window.innerHeight - areaTop - LEARN_H - DIARY_H - MARGIN);
+    scrollArea.style.height=fixedH+'px';
+    // WPXを再計算してタイムラインをfixedHにぴったり合わせる
+    WPX=fixedH/(END_H-START_H)/60;
+    // グリッドを再描画
+    const newTotalPx=(END_H-START_H)*60*WPX;
+    const newGl=makeGridLines(WPX);
+    const newTimeHTML=makeTimeHTML(WPX);
+    document.getElementById('weekTimeCol').style.height=newTotalPx+'px';
+    document.getElementById('weekTimeCol').innerHTML=newGl+newTimeHTML;
+    for(let i=0;i<7;i++){
+      const cell=document.getElementById('weekDayCell'+i);
+      if(cell)cell.style.height=newTotalPx+'px';
+    }
+    const areaH=scrollArea.getBoundingClientRect().height;
+    const minWPX=areaH*0.88/(END_H-START_H)/60;
+    // 最小縮尺なら0時から表示、それ以外は7時付近
+    if(WPX<=minWPX*1.05) scrollArea.scrollTop=0;
+    else scrollArea.scrollTop=Math.max(0,(7*60-30)*WPX);
+    // 時間軸列にドラッグ縮尺変更をバインド
+    const tc=document.getElementById('weekTimeCol');
+    if(tc)tc.addEventListener('mousedown',onWeekTimeColScaleStart);
+  },50);
+
+  // 日記セクション
+  const diaryHTML=dates.map((dt,i)=>{
+    const data=weekData[i];
+    const diary=data.diary||'';
+    const isT=(dt.y===todayY&&dt.m===todayM&&dt.d===todayD);
+    const isLast=i===6;
+    return `<div style="padding:8px 10px;min-height:80px;background:${isT?'#fffdf5':'#fff'};${isLast?'':'border-right:0.5px solid #ddd;'}border-top:0.5px solid #eee;vertical-align:top">
+      <div style="font-size:11px;color:#aaa;margin-bottom:4px">${dt.m}/${dt.d}</div>
+      <div style="font-size:11px;color:#444;line-height:1.6;white-space:pre-wrap;word-break:break-all">${diary?escapeHtml(diary):'<span style="color:#ddd">---</span>'}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('weekDiary').innerHTML=
+    `<div style="background:#f5f5f2;border-right:0.5px solid #ddd;padding:8px 4px;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;color:#888;writing-mode:horizontal-tb">📝</span></div>`+diaryHTML;
+
+  // 学習チェックセクション
+  const learningItems=getLearningItems();
+  const weekLearningArea=document.getElementById('weekLearningArea');
+  const weekLearningEl=document.getElementById('weekLearning');
+  if(!learningItems.length){
+    weekLearningArea.style.display='none';
+  }else{
+    weekLearningArea.style.display='block';
+    const ROWS=3; // 1列あたり最大行数
+    // アイテムをROWS行ずつのチャンクに分割
+    const chunks=[];
+    for(let i=0;i<learningItems.length;i+=ROWS)chunks.push(learningItems.slice(i,i+ROWS));
+
+    // 週合計学習時間を計算（項目別）
+    let weekTotalMin=0;
+    const weekItemMin={}; // {tmplId: 分}
+    learningItems.forEach(t=>{weekItemMin[t.id]=0;});
+    // 各日の実績から学習項目名に一致する合計時間を計算するヘルパー
+    function getDayActualMin(dayActuals,name){
+      return (dayActuals||[]).filter(b=>(b.name||'').trim()===name.trim())
+        .reduce((s,b)=>{const d=toMin(b.end)-toMin(b.start);return s+(d>0?d:0);},0);
+    }
+
+    const learningColHTML=dates.map((dt,i)=>{
+      const data=weekData[i];
+      const checks=data.learningChecks||{};
+      const dayActuals=data.actuals||[];
+      const isT=(dt.y===todayY&&dt.m===todayM&&dt.d===todayD);
+      const isLast=i===6;
+      const dtKey=`${dt.y}-${dt.m}-${dt.d}`;
+
+      // 実績自動マッチング＋項目別集計
+      const autoMin={};
+      learningItems.forEach(t=>{
+        const m=getDayActualMin(dayActuals,t.name);
+        if(m>0){autoMin[t.id]=m;weekTotalMin+=m;weekItemMin[t.id]+=m;}
+      });
+
+      const done=learningItems.filter(t=>autoMin[t.id]||checks[t.id]).length;
+
+      // チャンクを横並びにしてROWS行以内に収める
+      const colsHTML=chunks.map(chunk=>{
+        const rows=chunk.map(t=>{
+          const isAuto=!!autoMin[t.id];
+          const isManual=!!checks[t.id];
+          const checked=isAuto||isManual;
+          const minLabel=autoMin[t.id]?` <span style="font-size:9px;color:#3C3489;background:#EEEDFE;border-radius:3px;padding:0 4px">${fmtMin(autoMin[t.id])}</span>`:'';
+          return `<div style="display:flex;align-items:center;gap:4px;padding:1px 0;white-space:nowrap">
+            <input type="checkbox" ${checked?'checked':''} ${isAuto?'disabled':''}
+              onchange="toggleWeekLearningCheck('${dtKey}',${t.id},this.checked)"
+              style="width:12px;height:12px;cursor:${isAuto?'default':'pointer'};accent-color:#3C3489;flex-shrink:0">
+            <span style="font-size:10px;color:${checked?'#bbb':'#444'};text-decoration:${checked?'line-through':'none'};overflow:hidden;text-overflow:ellipsis">${t.name}${minLabel}</span>
+          </div>`;
+        }).join('');
+        return `<div style="flex-shrink:0;min-width:0">${rows}</div>`;
+      }).join('');
+      return `<div style="padding:6px 8px;background:${isT?'#fffdf5':'#fff'};${isLast?'':'border-right:0.5px solid #ddd;'}">
+        <div style="font-size:10px;color:#aaa;margin-bottom:3px">${dt.m}/${dt.d}　<span style="color:${done===learningItems.length&&done>0?'#1D9E75':'#aaa'}">${done}/${learningItems.length}</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:nowrap;overflow:hidden">${colsHTML}</div>
+      </div>`;
+    }).join('');
+    weekLearningEl.innerHTML=
+      `<div style="background:#f5f5f2;border-right:0.5px solid #ddd;padding:8px 4px;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;color:#888">📚</span></div>`+learningColHTML;
+
+    // 週合計時間を項目別内訳付きで表示
+    const weekTotalEl=document.getElementById('weekLearningTotal');
+    if(weekTotalEl){
+      if(weekTotalMin>0){
+        // 項目別バッジ（時間があるものだけ）
+        const itemBadges=learningItems
+          .filter(t=>weekItemMin[t.id]>0)
+          .map(t=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#f5f5f2;border:0.5px solid #ddd;border-radius:4px;padding:1px 6px;font-size:11px;color:#444">
+            <span style="color:#666">${t.name}</span>
+            <span style="color:#3C3489;font-weight:500">${fmtMin(weekItemMin[t.id])}</span>
+          </span>`).join('');
+        weekTotalEl.innerHTML=
+          `<span style="color:#085041;font-weight:500">週合計 ${fmtMin(weekTotalMin)}</span>`+
+          `<span style="margin-left:8px;display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center">${itemBadges}</span>`;
+        weekTotalEl.style.cssText='font-size:11px;background:#E1F5EE;border-radius:6px;padding:3px 10px;display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;margin-left:8px';
+      }else{
+        weekTotalEl.style.display='none';
+      }
+    }
+  }
+}
+function toggleWeekLearningCheck(dtKey,tmplId,checked){
+  // dtKey = "yyyy-m-d"
+  const[y,m,d]=dtKey.split('-').map(Number);
+  const storageKey='yojitsu:'+mkDateStr(y,m,d);
+  let data={plans:[],actuals:[],nextId:200,diary:'',learningChecks:{}};
+  try{const r=localStorage.getItem(storageKey);if(r)data=JSON.parse(r);}catch(e){}
+  if(!data.learningChecks)data.learningChecks={};
+  data.learningChecks[tmplId]=checked;
+  try{localStorage.setItem(storageKey,JSON.stringify(data));}catch(e){}
+  // 表示中の日と同じなら日次側も更新
+  if(y===cY&&m===cM&&d===cD){
+    learningChecks=data.learningChecks;
+    renderLearningChecks();
+  }
+  renderWeek();
+}
+
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function jumpToDay(y,m,d){cY=y;cM=m;cD=d;render._initialized=false;updateHeader();loadData();render();renderLearningChecks();showDaily();}
+
+// ---- ダッシュボード ----
+const ITEM_COLORS=['#378ADD','#1D9E75','#EF9F27','#7F77DD','#D85A30','#D4537E','#639922','#BA7517'];
+
+function getDashPeriods(){
+  const now=new Date();
+  const periods=[];
+  if(dashMode==='week'){
+    for(let i=3;i>=0;i--){
+      const sun=new Date(now);
+      sun.setDate(sun.getDate()-sun.getDay()-i*7);
+      const sat=new Date(sun);sat.setDate(sat.getDate()+6);
+      const dates=[];
+      for(let d=0;d<7;d++){const dd=new Date(sun);dd.setDate(dd.getDate()+d);dates.push({y:dd.getFullYear(),m:dd.getMonth()+1,d:dd.getDate()});}
+      const label=`${sun.getMonth()+1}/${sun.getDate()}週`;
+      periods.push({label,dates,isCurrent:i===0});
+    }
+  }else if(dashMode==='month'){
+    for(let i=3;i>=0;i--){
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+      const dates=[];
+      for(let dd=1;dd<=last;dd++)dates.push({y:d.getFullYear(),m:d.getMonth()+1,d:dd});
+      periods.push({label:`${d.getMonth()+1}月`,dates,isCurrent:i===0});
+    }
+  }else{
+    for(let i=2;i>=0;i--){
+      const y=now.getFullYear()-i;
+      const dates=[];
+      for(let m=1;m<=12;m++){const last=new Date(y,m,0).getDate();for(let dd=1;dd<=last;dd++)dates.push({y,m,d:dd});}
+      periods.push({label:`${y}年`,dates,isCurrent:i===0});
+    }
+  }
+  return periods;
+}
+
+function getDayData(y,m,d){
+  try{const r=localStorage.getItem('yojitsu:'+mkDateStr(y,m,d));if(r)return JSON.parse(r);}catch(e){}
+  return null;
+}
+
+function renderDashboard(){
+  const items=getLearningItems();
+  const periods=getDashPeriods();
+  const cur=periods[periods.length-1];
+
+  // 期間ラベル
+  const periodEl=document.getElementById('dashPeriodLabel');
+  if(periodEl)periodEl.textContent=cur.label;
+
+  // ボタンの見た目
+  ['week','month','year'].forEach(m=>{
+    const btn=document.getElementById('dashBtn'+m.charAt(0).toUpperCase()+m.slice(1));
+    if(btn){
+      if(m===dashMode){btn.style.background='#EEEDFE';btn.style.color='#3C3489';btn.style.borderColor='#AFA9EC';}
+      else{btn.style.background='';btn.style.color='';btn.style.borderColor='';}
+    }
+  });
+
+  // 当期のデータ集計
+  let totalMin=0;
+  const itemMins={};
+  items.forEach(t=>{itemMins[t.id]=0;});
+  cur.dates.forEach(({y,m,d})=>{
+    const data=getDayData(y,m,d);
+    if(!data||!data.actuals)return;
+    items.forEach(t=>{
+      data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{
+        const dd=toMin(a.end)-toMin(a.start);
+        if(dd>0){itemMins[t.id]+=dd;totalMin+=dd;}
+      });
+    });
+  });
+
+  // ① サマリー
+  const statsEl=document.getElementById('dashStats');
+  const studyDays=cur.dates.filter(({y,m,d})=>{
+    const data=getDayData(y,m,d);
+    if(!data||!data.actuals)return false;
+    return items.some(t=>data.actuals.some(a=>(a.name||'').trim()===t.name.trim()&&toMin(a.end)-toMin(a.start)>0));
+  }).length;
+  const checkedItems=items.filter(t=>itemMins[t.id]>0).length;
+  statsEl.innerHTML=`
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${fmtMin(totalMin)||'0h'}</div><div style="font-size:10px;color:#666;margin-top:1px">${cur.label}の学習</div></div>
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${checkedItems}</div><div style="font-size:10px;color:#666;margin-top:1px">学習項目数</div><div style="font-size:10px;color:#aaa;margin-top:2px">全${items.length}中</div></div>
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${studyDays}日</div><div style="font-size:10px;color:#666;margin-top:1px">学習した日</div></div>
+    <div style="background:#f5f5f2;border-radius:8px;padding:8px 10px"><div style="font-size:18px;font-weight:500">${fmtMin(totalMin)||'0h'}</div><div style="font-size:10px;color:#666;margin-top:1px">累計</div></div>`;
+
+  // ① 棒グラフ
+  const maxMin=Math.max(...items.map(t=>itemMins[t.id]),1);
+  const barEl=document.getElementById('dashBarChart');
+  barEl.innerHTML=items.filter(t=>itemMins[t.id]>0).map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <div style="font-size:10px;color:#1a1a1a;width:90px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
+      <div style="flex:1;height:10px;background:#f5f5f2;border-radius:2px;overflow:hidden">
+        <div style="width:${Math.round(itemMins[t.id]/maxMin*100)}%;height:100%;background:${ITEM_COLORS[i%ITEM_COLORS.length]};border-radius:2px"></div>
+      </div>
+      <div style="font-size:10px;color:#666;width:32px;text-align:right">${fmtMin(itemMins[t.id])}</div>
+    </div>`).join('')||'<div style="font-size:11px;color:#aaa">データなし</div>';
+
+  // ② 積み上げ棒グラフ
+  const stackEl=document.getElementById('dashStackChart');
+  const legendEl=document.getElementById('dashStackLegend');
+  const periodMins=periods.map(p=>{
+    const mins={};
+    items.forEach(t=>{mins[t.id]=0;});
+    p.dates.forEach(({y,m,d})=>{
+      const data=getDayData(y,m,d);
+      if(!data||!data.actuals)return;
+      items.forEach(t=>{
+        data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{
+          const dd=toMin(a.end)-toMin(a.start);if(dd>0)mins[t.id]+=dd;
+        });
+      });
+    });
+    const total=items.reduce((s,t)=>s+mins[t.id],0);
+    return{...p,mins,total};
+  });
+  const maxTotal=Math.max(...periodMins.map(p=>p.total),1);
+  stackEl.innerHTML=periodMins.map(p=>{
+    const h=Math.round(p.total/maxTotal*80);
+    const bars=items.filter(t=>p.mins[t.id]>0).map((t,i)=>{
+      const bh=Math.round(p.mins[t.id]/maxTotal*80);
+      return `<div style="width:100%;height:${bh}px;background:${ITEM_COLORS[items.indexOf(t)%ITEM_COLORS.length]}"></div>`;
+    }).join('');
+    return `<div style="flex:1;text-align:center">
+      <div style="height:80px;display:flex;flex-direction:column;justify-content:flex-end;margin-bottom:3px;${p.isCurrent?'border:0.5px solid #B5D4F4;border-radius:3px;padding:2px 2px 0':''}">${bars}</div>
+      <div style="font-size:9px;color:${p.isCurrent?'#378ADD':'#666'}">${p.label}</div>
+      <div style="font-size:10px;font-weight:500;color:${p.isCurrent?'#378ADD':'#1a1a1a'}">${fmtMin(p.total)||'—'}</div>
+    </div>`;
+  }).join('');
+  legendEl.innerHTML=items.filter(t=>periodMins.some(p=>p.mins[t.id]>0)).map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:3px">
+      <div style="width:8px;height:8px;background:${ITEM_COLORS[i%ITEM_COLORS.length]};border-radius:1px"></div>
+      <span style="font-size:9px;color:#666">${t.name}</span>
+    </div>`).join('');
+
+  // ③ カレンダー
+  const calEl=document.getElementById('dashCalendar');
+  const dows=['日','月','火','水','木','金','土'];
+  let calHTML=`<div style="display:grid;grid-template-columns:36px repeat(7,1fr);gap:2px;margin-bottom:3px"><div></div>${dows.map(d=>`<div style="font-size:9px;color:#aaa;text-align:center">${d}</div>`).join('')}</div>`;
+  // 当月のカレンダー（週モードは当月、月モードは当月、年モードは今年の月別）
+  if(dashMode==='year'){
+    const y=new Date().getFullYear();
+    const monthTotals=[];
+    for(let mo=1;mo<=12;mo++){
+      const last=new Date(y,mo,0).getDate();
+      let tot=0;
+      for(let dd=1;dd<=last;dd++){
+        const data=getDayData(y,mo,dd);
+        if(!data||!data.actuals)continue;
+        items.forEach(t=>{data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{const d2=toMin(a.end)-toMin(a.start);if(d2>0)tot+=d2;});});
+      }
+      monthTotals.push({mo,tot});
+    }
+    const maxT=Math.max(...monthTotals.map(m=>m.tot),1);
+    calHTML=`<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">` +
+      monthTotals.map(({mo,tot})=>{
+        const bg=tot===0?'#f5f5f2':tot<maxT*0.3?'#E6F1FB':tot<maxT*0.6?'#B5D4F4':'#378ADD';
+        const fc=tot<maxT*0.6?'#0C447C':'#fff';
+        return `<div style="text-align:center;background:${bg};border-radius:4px;padding:4px 2px"><div style="font-size:10px;color:#666">${mo}月</div><div style="font-size:9px;font-weight:500;color:${fc}">${tot?fmtMin(tot):'—'}</div></div>`;
+      }).join('') + '</div>';
+  }else{
+    const d=new Date();
+    const y=d.getFullYear(),mo=d.getMonth()+1;
+    const first=new Date(y,mo-1,1).getDay();
+    const last=new Date(y,mo,0).getDate();
+    const cells=[];
+    for(let i=0;i<first;i++)cells.push(null);
+    for(let dd=1;dd<=last;dd++)cells.push({y,m:mo,d:dd});
+    while(cells.length%7)cells.push(null);
+    const weeks=[];
+    for(let i=0;i<cells.length;i+=7)weeks.push(cells.slice(i,i+7));
+    calHTML+=weeks.map(week=>{
+      const label=week.find(c=>c)?`${week.find(c=>c).m}/${week.find(c=>c).d}`:'';
+      return `<div style="display:grid;grid-template-columns:36px repeat(7,1fr);gap:2px;margin-bottom:2px">
+        <div style="font-size:9px;color:#aaa;display:flex;align-items:center;justify-content:flex-end;padding-right:3px">${label}</div>
+        ${week.map(cell=>{
+          if(!cell)return`<div style="height:20px;background:#f9f9f9;border-radius:2px"></div>`;
+          const data=getDayData(cell.y,cell.m,cell.d);
+          let tot=0;
+          if(data&&data.actuals)items.forEach(t=>{data.actuals.filter(a=>(a.name||'').trim()===t.name.trim()).forEach(a=>{const dd=toMin(a.end)-toMin(a.start);if(dd>0)tot+=dd;});});
+          const bg=tot===0?'#f5f5f2':tot<120?'#E6F1FB':tot<240?'#B5D4F4':'#378ADD';
+          const fc=tot<240?'#0C447C':'#fff';
+          return`<div style="height:20px;background:${bg};border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:${fc}">${tot?fmtMin(tot):'—'}</div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+    calHTML+=`<div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+      <div style="width:10px;height:10px;background:#f5f5f2;border-radius:2px;border:0.5px solid #eee"></div><span style="font-size:9px;color:#aaa">0h</span>
+      <div style="width:10px;height:10px;background:#E6F1FB;border-radius:2px"></div><span style="font-size:9px;color:#aaa">〜2h</span>
+      <div style="width:10px;height:10px;background:#B5D4F4;border-radius:2px"></div><span style="font-size:9px;color:#aaa">〜4h</span>
+      <div style="width:10px;height:10px;background:#378ADD;border-radius:2px"></div><span style="font-size:9px;color:#aaa">4h+</span>
+    </div>`;
+  }
+  calEl.innerHTML=calHTML;
+
+  // ④ メモ履歴
+  const memoEl=document.getElementById('dashMemoHistory');
+  memoEl.innerHTML=items.map(t=>{
+    const hist=learningMemoHistory[t.id]||[];
+    if(!hist.length)return '';
+    return `<div style="margin-bottom:8px">
+      <div style="font-size:10px;font-weight:500;color:#1a1a1a;margin-bottom:4px">${t.name}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${hist.slice(0,8).map(m=>`<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#E6F1FB;color:#0C447C;border:0.5px solid #B5D4F4">${m}</span>`).join('')}</div>
+    </div>`;
+  }).join('')||'<div style="font-size:11px;color:#aaa">メモ履歴なし</div>';
+}
+
+function copyPlanToActual(){
+  pushUndo();
+  actuals=plans.map(p=>({...p,id:nextId++}));
+  saveData();render();
+}
+
+function copyText(){
+  let txt=`【${displayStr()} 予実記録】\n\n▼予定\n`;
+  plans.forEach(p=>txt+=`  ${p.start}〜${p.end}（${toH(dur(p.start,p.end))}）${p.name}\n`);
+  txt+='\n▼実績\n';
+  actuals.forEach(a=>{
+    const pl=mPlan(a);const d=pl?dur(a.start,a.end)-dur(pl.start,pl.end):0;
+    txt+=`  ${a.start}〜${a.end}（${toH(dur(a.start,a.end))}）${a.name}`;
+    if(pl&&Math.abs(d)>5)txt+=`  ★${d>0?'+':''}${d}分`;
+    txt+='\n';
+  });
+  navigator.clipboard.writeText(txt).then(()=>alert('コピーしました'));
+}
+
+// ---- カレンダーピッカー ----
+let calY=0,calM=0,calWeekMode=false;
+const CAL_DOWS=['日','月','火','水','木','金','土'];
+
+function toggleCalPicker(){
+  const popup=document.getElementById('calPopup');
+  if(popup.classList.contains('open')&&!calWeekMode){closeCalPicker();return;}
+  calWeekMode=false;
+  calY=cY;calM=cM;
+  renderCalPopup();
+  const anchor=document.getElementById('dateDisplay');
+  const r=anchor.getBoundingClientRect();
+  popup.style.top=(r.bottom+4)+'px';
+  popup.style.left=r.left+'px';
+  popup.classList.add('open');
+}
+function toggleCalPickerWeek(){
+  const popup=document.getElementById('calPopup');
+  if(popup.classList.contains('open')&&calWeekMode){closeCalPicker();return;}
+  calWeekMode=true;
+  calY=weekSunDate.y;calM=weekSunDate.m;
+  renderCalPopup();
+  const anchor=document.getElementById('weekTitle');
+  const r=anchor.getBoundingClientRect();
+  popup.style.top=(r.bottom+4)+'px';
+  popup.style.left=r.left+'px';
+  popup.classList.add('open');
+}
+function closeCalPicker(){
+  document.getElementById('calPopup').classList.remove('open');
+}
+function calChangeMonth(n){
+  calM+=n;
+  if(calM>12){calM=1;calY++;}
+  if(calM<1){calM=12;calY--;}
+  renderCalPopup();
+}
+function renderCalPopup(){
+  document.getElementById('calTitle').textContent=`${calY}年 ${calM}月`;
+  // 曜日ヘッダー
+  document.getElementById('calDowRow').innerHTML=CAL_DOWS.map((d,i)=>
+    `<div class="cal-dow" style="${i===0?'color:#993C1D':i===6?'color:#0C447C':''}">${d}</div>`
+  ).join('');
+  // 日グリッド
+  const firstDow=new Date(calY,calM-1,1).getDay();
+  const lastDay=new Date(calY,calM,0).getDate();
+  const prevLast=new Date(calY,calM-1,0).getDate();
+  let cells='';
+  // 前月の余白
+  for(let i=0;i<firstDow;i++){
+    const d=prevLast-firstDow+1+i;
+    cells+=`<div class="cal-day other-month">${d}</div>`;
+  }
+  // 当月
+  for(let d=1;d<=lastDay;d++){
+    const isToday=(calY===todayY&&calM===todayM&&d===todayD);
+    // 週次モード：その週全体をハイライト、日次モード：選択日をハイライト
+    let isSel=false;
+    if(calWeekMode){
+      const dt=new Date(calY,calM-1,d);
+      const sun=new Date(weekSunDate.y,weekSunDate.m-1,weekSunDate.d);
+      const sat=new Date(sun);sat.setDate(sat.getDate()+6);
+      isSel=(dt>=sun&&dt<=sat);
+    }else{
+      isSel=(calY===cY&&calM===cM&&d===cD);
+    }
+    const dow=new Date(calY,calM-1,d).getDay();
+    const holiday=getHoliday(calY,calM,d);
+    const isRed=dow===0||!!holiday;
+    const isSat=dow===6;
+    let cls='cal-day';
+    if(isSel)cls+=' selected';
+    else if(isToday)cls+=' today';
+    else if(isRed)cls+=' holiday';
+    else if(isSat)cls+=' sat';
+    const title=holiday?holiday:'';
+    cells+=`<div class="${cls}" title="${title}" onclick="calJumpToDay(${calY},${calM},${d})">${d}</div>`;
+  }
+  // 翌月の余白（6行分になるよう埋める）
+  const total=firstDow+lastDay;
+  const remain=total%7===0?0:7-(total%7);
+  for(let d=1;d<=remain;d++){
+    cells+=`<div class="cal-day other-month">${d}</div>`;
+  }
+  document.getElementById('calDayGrid').innerHTML=cells;
+}
+function calJumpToDay(y,m,d){
+  closeCalPicker();
+  if(calWeekMode){
+    // クリックした日が含まれる週の日曜にジャンプ
+    const clicked=new Date(y,m-1,d);
+    clicked.setDate(clicked.getDate()-clicked.getDay());
+    weekSunDate={y:clicked.getFullYear(),m:clicked.getMonth()+1,d:clicked.getDate()};
+    renderWeek();
+  }else{
+    cY=y;cM=m;cD=d;
+    render._initialized=false;
+    updateHeader();loadData();render();renderLearningChecks();
+  }
+}
+// ポップアップ外クリックで閉じる
+document.addEventListener('click',e=>{
+  const popup=document.getElementById('calPopup');
+  if(!popup.classList.contains('open'))return;
+  if(e.target.closest('#calPopup')||e.target.closest('#dateDisplay')||e.target.closest('#weekTitle'))return;
+  closeCalPicker();
+},{capture:true});
+
+
+// PXスケール復元
+(function(){
+  try{const v=parseFloat(localStorage.getItem('yojitsu:px'));if(v>=PX_MIN&&v<=PX_MAX)PX=v;}catch(e){}
+  try{const v=parseFloat(localStorage.getItem('yojitsu:wpx'));if(v>=WPX_MIN&&v<=WPX_MAX)WPX=v;}catch(e){}
+})();
+initToday();
+cY=todayY;cM=todayM;cD=todayD;
+monthY=todayY;monthM=todayM;
+const _d=new Date();_d.setDate(_d.getDate()-_d.getDay());
+weekSunDate={y:_d.getFullYear(),m:_d.getMonth()+1,d:_d.getDate()};
+updateHeader();
+loadTemplates();renderTemplates();
+loadMemoHistory();
+// loadData・render・renderLearningChecksはログイン後に実行
+
+// ---- サイドバーリサイズ ----
+(function(){
+  const resizer=document.getElementById('sidebarResizer');
+  let startX=0,startW=0;
+  const MIN_W=80,MAX_W=400;
+
+  const saved=localStorage.getItem('yojitsu:sidebarW');
+  if(saved){
+    const w=parseInt(saved);
+    if(w>=MIN_W&&w<=MAX_W)document.documentElement.style.setProperty('--sidebar-w',w+'px');
+  }
+
+  resizer.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    window._sbDragging=true;
+    startX=e.clientX;
+    startW=document.getElementById('sidebar').getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor='col-resize';
+    document.body.style.userSelect='none';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!window._sbDragging)return;
+    const w=Math.max(MIN_W,Math.min(MAX_W,startW+(e.clientX-startX)));
+    document.documentElement.style.setProperty('--sidebar-w',w+'px');
+  });
+  document.addEventListener('mouseup',e=>{
+    if(!window._sbDragging)return;
+    window._sbDragging=false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+    const w=document.getElementById('sidebar').getBoundingClientRect().width;
+    localStorage.setItem('yojitsu:sidebarW',Math.round(w));
+  });
+})();
+
+// ---- タイムライン縦リサイズ ----
+(function(){
+  const resizer=document.getElementById('tlVResizer');
+  const scroll=document.getElementById('tlScroll');
+  const sidebar=document.getElementById('sidebar');
+  let startY=0,startH=0;
+  const MIN_H=150;
+
+  const saved=localStorage.getItem('yojitsu:tlH');
+  const defaultH=Math.max(MIN_H,window.innerHeight-110-200-20);
+  const savedH=saved?Math.max(MIN_H,parseInt(saved)):defaultH;
+  // defaultHを優先（画面サイズに合わせて最大限広げる）
+  const initH=Math.max(defaultH, Math.min(savedH,defaultH));
+  document.documentElement.style.setProperty('--tl-h',initH+'px');
+  if(sidebar)sidebar.style.height=initH+'px';
+
+  // ドラッグ中の最大高さ：リサイザー自体＋日記エリア最低高さ＋余白を確保
+  function calcMaxH(){
+    const tlOuter=scroll.closest('.tl-outer');
+    const outerTop=tlOuter?tlOuter.getBoundingClientRect().top:0;
+    const DIARY_MIN=60; // 日記エリアの最低確保高さ
+    const RESIZER_H=18;  // .tl-v-resizerの高さ
+    const MARGIN=16;     // 下の余白
+    return Math.max(MIN_H, window.innerHeight - outerTop - RESIZER_H - DIARY_MIN - MARGIN);
+  }
+
+  resizer.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    window._tlVDragging=true;
+    startY=e.clientY;
+    startH=scroll.getBoundingClientRect().height;
+    resizer.classList.add('dragging');
+    document.body.style.cursor='ns-resize';
+    document.body.style.userSelect='none';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!window._tlVDragging)return;
+    const h=Math.max(MIN_H,Math.min(calcMaxH(),startH+(e.clientY-startY)));
+    document.documentElement.style.setProperty('--tl-h',h+'px');
+    if(sidebar)sidebar.style.height=h+'px';
+  });
+  document.addEventListener('mouseup',e=>{
+    if(!window._tlVDragging)return;
+    window._tlVDragging=false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+    const h=scroll.getBoundingClientRect().height;
+    localStorage.setItem('yojitsu:tlH',Math.round(h));
+  });
+})();
+</script>
+<!-- カレンダーピッカー（body直下・fixed表示） -->
+<div class="cal-popup" id="calPopup">
+  <div class="cal-head">
+    <button class="cal-nav" onclick="calChangeMonth(-1)">‹</button>
+    <span class="cal-title" id="calTitle"></span>
+    <button class="cal-nav" onclick="calChangeMonth(1)">›</button>
+  </div>
+  <div class="cal-grid" id="calDowRow"></div>
+  <div class="cal-grid" id="calDayGrid"></div>
+</div>
+
+<!-- Firebase設定・認証・データ同期 -->
+<script>
+// ★Firebase設定
+const firebaseConfig = {
+  apiKey: "AIzaSyDQL7zL7wG0pu8CmJlnS6CDCJpZxvO0mbM",
+  authDomain: "yojitu-kanri-cabf1.firebaseapp.com",
+  databaseURL: "https://yojitu-kanri-cabf1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "yojitu-kanri-cabf1",
+  storageBucket: "yojitu-kanri-cabf1.firebasestorage.app",
+  messagingSenderId: "610346170537",
+  appId: "1:610346170537:web:edab5f4008d30343af51b8"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+let currentUid = null;
+
+// ---- ログインUI ----
+const loginOverlay = document.createElement('div');
+loginOverlay.id = 'loginOverlay';
+loginOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#f5f5f2;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;';
+loginOverlay.innerHTML = `
+  <div style="font-family:'Meiryo UI',sans-serif;font-size:18px;font-weight:500;color:#1a1a1a;margin-bottom:8px">予実タイムライン</div>
+  <button id="loginBtn" style="display:flex;align-items:center;gap:10px;padding:10px 24px;border:0.5px solid #ccc;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;font-family:'Meiryo UI',sans-serif;">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+    Googleでログイン
+  </button>
+  <div id="loginStatus" style="font-size:12px;color:#999;"></div>
+`;
+document.body.appendChild(loginOverlay);
+document.getElementById('loginBtn').addEventListener('click', () => {
+  document.getElementById('loginStatus').textContent = 'ログイン中...';
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithRedirect(provider);
+});
+
+// リダイレクト後の結果を処理
+auth.getRedirectResult().catch(e => {
+  console.error('redirect error', e);
+});
+
+// ---- 認証状態の監視 ----
+auth.onAuthStateChanged(user => {
+  if (user) {
+    currentUid = user.uid;
+    loginOverlay.style.display = 'none';
+    // Firebaseからテンプレートを読み込み
+    loadTemplatesFromFirebase(() => {
+      loadData();
+      render();
+      renderLearningChecks();
+      // 週・月表示も初期データをFirebaseから取得
+      if(typeof renderWeek === 'function') renderWeek();
+      if(typeof renderMonth === 'function') renderMonth();
+    });
+  } else {
+    currentUid = null;
+    loginOverlay.style.display = 'flex';
+  }
+});
+
+// ---- Firebase版 saveData ----
+function saveData(){
+  const diary = document.getElementById('diaryText') ? document.getElementById('diaryText').value : '';
+  // localStorageにも保存（オフライン対応）
+  try { localStorage.setItem('yojitsu:'+dateStr(), JSON.stringify({plans,actuals,nextId,diary,learningChecks})); } catch(e){}
+  // Firebaseに保存
+  if (!currentUid) return;
+  db.ref('users/'+currentUid+'/days/'+dateStr()).set({plans,actuals,nextId,diary,learningChecks});
+}
+
+// ---- Firebase版 loadData ----
+function loadData(y,m,d){
+  const ds = y ? mkDateStr(y,m,d) : dateStr();
+  const key = 'yojitsu:' + ds;
+  if (!currentUid) {
+    // 未ログイン時はlocalStorageから
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const data = JSON.parse(raw);
+        data.plans=(data.plans||[]).filter(p=>!p.carryId);
+        data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
+        if (!y) { plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;learningChecks=data.learningChecks||{}; const ta=document.getElementById('diaryText');if(ta)ta.value=data.diary||''; }
+        return data;
+      }
+    } catch(e){}
+    if (!y) { plans=[];actuals=[];nextId=200;learningChecks={}; }
+    return null;
+  }
+  // Firebase から読み込み
+  db.ref('users/'+currentUid+'/days/'+ds).once('value').then(snap => {
+    const data = snap.val();
+    if (data) {
+      data.plans=(data.plans||[]).filter(p=>!p.carryId);
+      data.actuals=(data.actuals||[]).filter(a=>!a.carryId);
+      if (!y) {
+        plans=data.plans;actuals=data.actuals;nextId=data.nextId||200;
+        learningChecks=data.learningChecks||{};
+        const ta=document.getElementById('diaryText');
+        if(ta)ta.value=data.diary||'';
+        setDiaryStatus('');
+      }
+      // localStorageにも保存
+      try { localStorage.setItem(key, JSON.stringify(data)); } catch(e){}
+    } else {
+      if (!y) { plans=[];actuals=[];nextId=200;learningChecks={}; const ta=document.getElementById('diaryText');if(ta)ta.value=''; setDiaryStatus(''); }
+    }
+    render();renderLearningChecks();
+  });
+  return null;
+}
+
+// ---- Firebase版 loadTemplates ----
+function loadTemplatesFromFirebase(callback){
+  if (!currentUid) { loadTemplates(); if(callback)callback(); return; }
+  db.ref('users/'+currentUid+'/templates').once('value').then(snap => {
+    const data = snap.val();
+    if (data && Array.isArray(data) && data.length) {
+      templates = data;
+    } else {
+      loadTemplates(); // デフォルトテンプレートをセット
+    }
+    renderTemplates();
+    if(callback)callback();
+  });
+}
+
+// ---- Firebase版 saveTemplates ----
+function saveTemplates(){
+  try { localStorage.setItem('yojitsu:templates', JSON.stringify(templates)); } catch(e){}
+  if (!currentUid) return;
+  db.ref('users/'+currentUid+'/templates').set(templates);
+}
+
+// ---- ログアウトボタン追加 ----
+window.addEventListener('DOMContentLoaded', () => {
+  const header = document.querySelector('.topbar') || document.querySelector('body > div');
+  const logoutBtn = document.createElement('button');
+  logoutBtn.textContent = 'ログアウト';
+  logoutBtn.style.cssText = 'font-size:11px;padding:3px 10px;border:0.5px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;margin-left:8px;';
+  logoutBtn.addEventListener('click', () => { if(confirm('ログアウトしますか？')) auth.signOut(); });
+  // ヘッダーのボタン群に追加
+  const btnArea = document.getElementById('headerBtns') || document.querySelector('.topbar');
+  if(btnArea) btnArea.appendChild(logoutBtn);
+});
+</script>
+
+</body>
+</html>
