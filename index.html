@@ -873,11 +873,12 @@ function showMemoSuggest(tid,input){
   const val=input.value.trim();
   const hist=learningMemoHistory[tid]||[];
   const filtered=val?hist.filter(h=>h.toLowerCase().includes(val.toLowerCase())):hist;
+  // 毎回再取得（renderLearningChecks後に古い要素が残ることを防ぐ）
   let suggest=document.getElementById('memoSuggest_'+tid);
   if(!suggest){
     suggest=document.createElement('div');
     suggest.id='memoSuggest_'+tid;
-    suggest.style.cssText='background:#fff;border:0.5px solid #ddd;border-radius:4px;margin-top:2px;overflow:hidden;';
+    suggest.style.cssText='position:absolute;left:0;right:0;top:100%;background:#fff;border:0.5px solid #ddd;border-radius:4px;overflow:hidden;z-index:50;';
     input.parentNode.appendChild(suggest);
   }
   let html='';
@@ -885,7 +886,7 @@ function showMemoSuggest(tid,input){
     const hs=h.replace(/'/g,"\\'");
     html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;font-size:11px;color:#444;cursor:pointer;border-top:0.5px solid #eee" onmousedown="event.preventDefault();addMemoTag(${tid},'${hs}');document.getElementById('memoInput_${tid}').value='';hideMemoSuggest(${tid})"><span>${h}</span><span style="color:#ccc;font-size:10px;padding:0 4px" onmousedown="event.stopPropagation();event.preventDefault();removeMemoHistory(${tid},'${hs}')">✕</span></div>`;
   });
-  if(val&&!learningMemoHistory[tid]||!learningMemoHistory[tid].includes(val)){
+  if(val&&!(hist.includes(val))){
     const vs=val.replace(/'/g,"\\'");
     html+=`<div style="padding:5px 8px;font-size:11px;color:#1D9E75;cursor:pointer;border-top:0.5px solid #eee;display:flex;align-items:center;gap:4px" onmousedown="event.preventDefault();addMemoTag(${tid},'${vs}');document.getElementById('memoInput_${tid}').value='';hideMemoSuggest(${tid})"><span>＋</span><span>「${val}」を新規追加</span></div>`;
   }
@@ -921,21 +922,29 @@ function setLearningCheckExpanded(expand){
   const area=document.getElementById('learningCheckArea');
   const diary=document.getElementById('diaryArea');
   const btn=document.getElementById('learningCheckExpandBtn');
+  const tlScroll=document.getElementById('tlScroll');
+  const list=document.getElementById('learningCheckList');
   if(expand){
-    // 展開：日記を隠してチェック欄を広げる
+    // 展開：日記を隠し、タイムラインを縮め、チェックリストを大きく
     if(diary)diary.style.display='none';
+    if(tlScroll)tlScroll.style.maxHeight='200px';
     if(area){
       area.style.border='0.5px solid #B5D4F4';
-      area.style.background='#fff';
+      area.style.flexGrow='1';
+      area.style.overflow='auto';
     }
+    if(list)list.style.maxHeight='300px';
     if(btn)btn.textContent='▼ 折りたたむ';
   }else{
-    // 折りたたみ：日記を戻す
+    // 折りたたみ：元に戻す
     if(diary)diary.style.display='';
+    if(tlScroll)tlScroll.style.maxHeight='';
     if(area){
       area.style.border='0.5px solid #ccc';
-      area.style.background='#fff';
+      area.style.flexGrow='';
+      area.style.overflow='hidden';
     }
+    if(list)list.style.maxHeight='';
     if(btn)btn.textContent='▲ 広げる';
   }
 }
