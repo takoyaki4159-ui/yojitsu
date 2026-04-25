@@ -1148,15 +1148,13 @@ document.addEventListener('mousemove',e=>{
   if(el){
     el.style.top=toPx(item.start,PX)+'px';
     el.style.height=hPx(item.start,item.end,PX)+'px';
-    const te=el.querySelector('.block-time');
-    if(te)te.textContent=`${item.start}〜${item.end}（${toH(dur(item.start,item.end))}）`;
-    // リアルタイム時刻バッジ
+    // リアルタイム時刻バッジのみ更新（テキストはマウスを離したときに更新）
     if(mode==='resizeBot'||mode==='resizeTop'||mode==='move'){
       let badge=el.querySelector('.resize-badge');
       if(!badge){
         badge=document.createElement('div');
         badge.className='resize-badge';
-        badge.style.cssText='position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:500;color:#fff;padding:2px 10px;border-radius:4px;pointer-events:none;z-index:100;white-space:nowrap;';
+        badge.style.cssText='position:absolute;top:2px;right:4px;font-size:10px;font-weight:500;color:#fff;padding:1px 6px;border-radius:3px;pointer-events:none;z-index:100;white-space:nowrap;line-height:1.6;';
         el.appendChild(badge);
       }
       const newDur=toMin(item.end)-toMin(item.start);
