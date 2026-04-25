@@ -119,6 +119,7 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
     <button class="btn" onclick="copyPlanToActual()">予定→実績</button>
     <button class="btn" onclick="resetToday()" style="color:#999;border-color:#ddd">今日リセット</button>
     <button class="btn" onclick="resetScale()" style="color:#999;border-color:#ddd" title="タイムラインの縮尺をデフォルトに戻す">縮尺リセット</button>
+    <button class="btn" id="btnMaximizeTL" onclick="toggleMaximizeTL()" style="background:#FAEEDA;color:#633806;border-color:#FAC775" title="学習チェック・日記をたたんでタイムラインを最大化">⛶ TL最大化</button>
     <button class="btn" onclick="importData()" style="color:#085041;border-color:#9FE1CB">インポート</button>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="onImportFile(this)">
     <button class="btn" onclick="exportData()" style="color:#085041;border-color:#9FE1CB">エクスポート</button>
@@ -952,6 +953,20 @@ function toggleDiaryArea(){
   const btn=document.getElementById('diaryToggleBtn');
   if(body){body.style.display=diaryOpen?'block':'none';}
   if(btn){btn.textContent=diaryOpen?'▲ 閉じる':'▼ 開く';}
+}
+
+// タイムライン最大化：学習チェック・日記を一気に閉じる/開くトグル
+function toggleMaximizeTL(){
+  // どちらか1つでも開いていれば「閉じる動作」、両方閉じてれば「開く動作」
+  const anyOpen = learningCheckOpen || diaryOpen;
+  const target = !anyOpen; // 目標状態
+  if(learningCheckOpen !== target) toggleLearningCheckArea();
+  if(diaryOpen !== target) toggleDiaryArea();
+  // ボタンの見た目を切り替え
+  const btn=document.getElementById('btnMaximizeTL');
+  if(btn){
+    btn.textContent = target ? '⛶ TL最大化' : '⛶ 元に戻す';
+  }
 }
 
 function onDiaryInput(){
