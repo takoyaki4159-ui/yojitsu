@@ -376,7 +376,7 @@ body{font-family:'Meiryo UI','メイリオ',Meiryo,-apple-system,BlinkMacSystemF
     <label>履歴から選ぶ</label>
     <select id="memoHistSelect" onchange="onMemoHistSelect(this)"><option value="">--選択--</option></select>
     <label>メモ</label>
-    <input type="text" id="memoTextInput" placeholder="例: 学習25">
+    <textarea id="memoTextInput" placeholder="例: 学習25" rows="4" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:0.5px solid #ccc;border-radius:4px;resize:vertical;line-height:1.5;outline:none"></textarea>
     <div class="modal-btns">
       <button class="modal-save" onclick="saveMemoModal()">保存</button>
       <button class="modal-del" id="memoDelBtn" onclick="deleteMemoModal()" style="display:none">削除</button>
@@ -1139,7 +1139,12 @@ document.getElementById('tmplModalBg').addEventListener('keydown',function(e){
 
 document.getElementById('memoModalBg').addEventListener('click',function(e){if(e.target===this)closeMemoModal();});
 document.getElementById('memoModalBg').addEventListener('keydown',function(e){
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveMemoModal();}
+  // textarea内はEnter＝改行、Ctrl+Enter or Cmd+Enterで保存
+  if(e.key==='Enter'){
+    if(e.ctrlKey||e.metaKey){e.preventDefault();saveMemoModal();return;}
+    // textarea以外（select等）でEnter押した場合は保存
+    if(document.activeElement.tagName!=='TEXTAREA'){e.preventDefault();saveMemoModal();}
+  }
   if(e.key==='Escape'){closeMemoModal();}
 });
 
